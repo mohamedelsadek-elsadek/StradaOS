@@ -6,19 +6,28 @@ plugins {
 // queda sin firmar (así lo necesita F-Droid, que firma con su propia clave).
 def ksPath = System.getenv('STRADAOS_KEYSTORE')
 
+// Edición «Elsadek Car»: ./gradlew assembleRelease -Pelsadek
+// Otro paquete (se instala junto a StradaOS), otro nombre, árabe por defecto y sin aviso de versiones de StradaOS.
+def elsadek = project.hasProperty('elsadek')
+def brandName = elsadek ? 'Elsadek Car' : 'StradaOS'
+
 android {
     namespace 'com.stradaos.launcher'
     compileSdk 35
 
     defaultConfig {
-        applicationId 'com.stradaos.launcher'
+        applicationId elsadek ? 'com.elsadek.car' : 'com.stradaos.launcher'
         // Android 4.1+: el objetivo del proyecto es revivir pantallas de carro antiguas.
         minSdk 16
         // 28 a propósito: mantiene el comportamiento probado en pantallas viejas y nuevas.
         targetSdk 28
         versionCode 56
         versionName '2.23.0'
-        manifestPlaceholders = [appLabel: 'StradaOS']
+        manifestPlaceholders = [appLabel: brandName]
+        resValue 'string', 'brand', brandName
+        // idioma de una instalación nueva: «auto» = el del sistema
+        resValue 'string', 'default_lang', elsadek ? 'ar' : 'auto'
+        resValue 'bool', 'updates_on', elsadek ? 'false' : 'true'
     }
 
     signingConfigs {
@@ -38,13 +47,15 @@ android {
         release {
             minifyEnabled false
             if (ksPath) signingConfig signingConfigs.release
+            // Elsadek Car sin la llave de publicación: se firma con la llave de depuración para poder instalarla
+            else if (elsadek) signingConfig signingConfigs.debug
         }
         // Versión de prueba: se instala junto a la normal (otro paquete y otro nombre). En GitHub Actions se firma
         // con la misma llave que la normal para que cada prueba nueva se instale encima de la anterior.
         debug {
             applicationIdSuffix '.debug'
             versionNameSuffix '-prueba'
-            manifestPlaceholders = [appLabel: 'StradaOS Prueba']
+            manifestPlaceholders = [appLabel: brandName + ' Prueba']
             if (ksPath) signingConfig signingConfigs.release
         }
     }
@@ -67,7 +78,7 @@ android {
 
     applicationVariants.configureEach { variant ->
         variant.outputs.configureEach {
-            outputFileName = "StradaOS-${variant.versionName}.apk"
+            outputFileName = "${elsadek ? 'ElsadekCar' : 'StradaOS'}-${variant.versionName}.apk"
         }
     }
 }

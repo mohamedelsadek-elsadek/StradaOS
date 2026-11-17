@@ -1,0 +1,44 @@
+name: Elsadek Car
+
+# Compila la edición «Elsadek Car» (paquete com.elsadek.car, árabe por defecto) y la publica en el Release «elsadek-car».
+# Se instala junto a StradaOS. Enlace fijo: https://github.com/<repo>/releases/download/elsadek-car/ElsadekCar.apk
+on:
+  push:
+    branches: [ 'claude/**' ]
+    paths-ignore: [ '**.md', 'docs/**', 'fastlane/**', 'changelogs/**', 'update.json', 'site/**' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Compilar Elsadek Car
+        run: ./gradlew --no-daemon assembleRelease -Pelsadek
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ElsadekCar
+          path: app/build/outputs/apk/release/*.apk
+      - name: Publicar en el Release «elsadek-car»
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/release/*.apk ElsadekCar.apk
+          SHORT=$(git rev-parse --short HEAD)
+          NOTES=$(printf 'Elsadek Car — لانشر شاشة العربية (مبني على StradaOS، رخصة GPL-3.0).\n\nCommit %s\n\nEnlace fijo:\nhttps://github.com/%s/releases/download/elsadek-car/ElsadekCar.apk' "$SHORT" "$GITHUB_REPOSITORY")
+          git tag -f elsadek-car
+          git push -f origin refs/tags/elsadek-car
+          if gh release view elsadek-car >/dev/null 2>&1; then
+            gh release upload elsadek-car ElsadekCar.apk --clobber
+            gh release edit elsadek-car --title "Elsadek Car · $SHORT" --notes "$NOTES" --prerelease --latest=false
+          else
+            gh release create elsadek-car ElsadekCar.apk --title "Elsadek Car · $SHORT" --notes "$NOTES" --prerelease --latest=false
+          fi

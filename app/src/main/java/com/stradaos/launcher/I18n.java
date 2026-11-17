@@ -25,6 +25,10 @@ public class I18n {
     static final String[] NAMES = {"Español", "English", "Português", "Italiano", "Deutsch", "Melayu", "العربية", "Türkçe", "Français", "中文"};
 
     static String lang = "es";
+    /** Nombre que se muestra («StradaOS» o el de una edición como «Elsadek Car», ver app/build.gradle). */
+    static String brand = "StradaOS";
+    /** «StradaOS» suelto en un texto (no dentro de enlaces, rutas o nombres de archivo). */
+    private static final Pattern BRAND_RE = Pattern.compile("(?<![/\\w.-])StradaOS(?![\\w/-]|\\.\\w)");
     static Locale loc = new Locale("es", "CO");
     /** Locale de los números: en árabe se usan dígitos latinos (0-9), no ٠-٩. */
     static Locale num = loc;
@@ -42,7 +46,7 @@ public class I18n {
     static String pref(SharedPreferences p) {
         String v = p.getString("lang", null);
         if (v == null) {
-            v = p.getBoolean("setup_done", false) ? "es" : "auto";
+            v = p.getBoolean("setup_done", false) ? "es" : defLang;
             p.edit().putString("lang", v).apply();
         }
         return v;
@@ -55,7 +59,14 @@ public class I18n {
         return "en";
     }
 
+    /** Idioma de una instalación nueva (R.string.default_lang: «auto» o, en Elsadek Car, «ar»). */
+    private static String defLang = "auto";
+
     static void init(Context c, SharedPreferences p) {
+        try {
+            brand = c.getString(R.string.brand);
+            defLang = c.getString(R.string.default_lang);
+        } catch (Throwable ignored) { }
         String v = pref(p);
         set(c, "auto".equals(v) ? system() : v);
     }
@@ -114,8 +125,14 @@ public class I18n {
     static String t(CharSequence cs) {
         if (cs == null) return null;
         String s = cs.toString();
-        if ("es".equals(lang) || s.length() == 0) return s;
-        return tr(s, 0);
+        if ("es".equals(lang) || s.length() == 0) return brand(s);
+        return brand(tr(s, 0));
+    }
+
+    /** Cambia «StradaOS» por el nombre de la edición; en StradaOS no hace nada. */
+    static String brand(String s) {
+        if (s == null || "StradaOS".equals(brand) || s.indexOf("StradaOS") < 0) return s;
+        return BRAND_RE.matcher(s).replaceAll(Matcher.quoteReplacement(brand));
     }
 
     /** Texto de varias líneas (diagnósticos): se traduce cada línea por separado. */

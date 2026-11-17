@@ -7299,6 +7299,11 @@ public class Main extends Activity {
         row(c, "Registro de fallos", "Cierres inesperados o bloqueos de StradaOS en esta pantalla", Guard.read(this) == null ? "Sin fallos" : "Ver",
             new Runnable() { public void run() { showGuardLog(); } });
 
+        if (getResources().getBoolean(R.bool.updates_on)) catAboutUpdates(body);
+        catAboutCommunity(body);
+    }
+
+    private void catAboutUpdates(LinearLayout body) {
         LinearLayout u = section(body, "Actualizaciones");
         final boolean fd = Updates.fromFdroid(this);
         if (fd) row(u, "Instalado desde " + Updates.storeName(this), "Las actualizaciones llegan por esa app", null, null);
@@ -7321,7 +7326,9 @@ public class Main extends Activity {
         row(u, "Buscar actualizaciones", last == 0 ? "Aún no se ha comprobado"
                 : "Última comprobación: " + new SimpleDateFormat("yyyy-MM-dd HH:mm", ES).format(new Date(last)), null,
             new Runnable() { public void run() { checkUpdates(true); } });
+    }
 
+    private void catAboutCommunity(LinearLayout body) {
         LinearLayout k = section(body, "Comunidad");
         row(k, "Dar una estrella en GitHub", "Ayuda a que más personas encuentren StradaOS", "★",
             new Runnable() { public void run() { linkDialog("Dar una estrella ⭐", "Abre el repositorio y toca «Star». ¡Gracias!", Updates.REPO_URL); } });
@@ -7355,6 +7362,7 @@ public class Main extends Activity {
         long now = System.currentTimeMillis();
         boolean auto = prefs.getBoolean("auto_update", !Updates.fromFdroid(this));
         if (getPackageName().endsWith(".debug")) auto = false;   // la versión de prueba no ofrece actualizar a la normal
+        if (!getResources().getBoolean(R.bool.updates_on)) auto = false;   // edición (Elsadek Car): no ofrece el APK de StradaOS
         if (auto && now - prefs.getLong("upd_last", 0) > 20L * 3600 * 1000) { checkUpdates(false); return; }
         // recuadro tipo SimpMusic: tras 5 días de uso y 15 aperturas, y luego cada 45 días si eligió «Más tarde»
         int opens = prefs.getInt("opens", 0) + 1;
