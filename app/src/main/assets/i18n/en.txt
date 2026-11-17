@@ -1123,3 +1123,15 @@ Horario de oración y resumen del viaje	Prayer times and trip summary
 Arriba: el próximo adhan y lo recorrido en este viaje. Toca para ver el horario completo	Top bar: the next prayer and this trip's distance. Tap for the full times
 Colores	Colors
 Apps: el ícono de la app que abre cada botón (radio, cámara…). Colores: un color por botón	Apps: the icon of the app each button opens (radio, camera…). Colors: one color per button
+Temas	Themes
+Tema de colores	Color theme
+Fondo, tarjetas, botones y acento. Después puedes cambiar el acento	Background, cards, buttons and accent. You can change the accent afterwards
+En modo claro se usa el tema claro; los temas son para el modo oscuro	Light mode uses the light theme; themes are for dark mode
+Clásico	Classic
+Azul marino y oro	Navy and gold
+Negro carbono	Carbon black
+Esmeralda	Emerald
+Vino	Wine
+Noche violeta	Violet night
+Grafito y azul	Graphite and blue
+Arena del desierto	Desert sand

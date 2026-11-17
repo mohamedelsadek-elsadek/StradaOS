@@ -36,7 +36,16 @@ adb shell am start -n $A --es prueba ajustes:3; sleep 3
 adb exec-out screencap -p > capturas/6-ajustes-voz-a.png
 adb shell input swipe 640 600 640 150 300; sleep 2
 adb exec-out screencap -p > capturas/6-ajustes-voz-b.png
-adb logcat -d | grep -E "ElsadekVoz|voz:" | tail -20 > capturas/voz.txt
+# radio por internet: lista de Egipto, reproduce la primera y la ventana
+adb shell am start -n $A --es prueba radio-demo; sleep 30
+adb shell dumpsys media_session | grep -E "ElsadekRadio|state=PlaybackState" | head -6 > capturas/radio-sesion.txt
+adb shell am start -n $A --es prueba radio; shot 7-radio 5
+adb shell input keyevent KEYCODE_BACK
+# temas: «Azul marino y oro» en el inicio y la galería en Ajustes → Apariencia
+adb shell am start -n $A --es prueba pref:palette=1; shot 8-tema-inicio 6
+adb shell am start -n $A --es prueba ajustes:5; shot 9-temas 5
+adb shell am start -n $A --es prueba pref:palette=0; sleep 3
+adb logcat -d | grep -E "ElsadekVoz|voz:" | tail -30 > capturas/voz.txt
 # viaje terminado → se sincroniza con Firebase (car_log_test en la versión de prueba)
 adb shell am start -n $A --es prueba viaje-cerrar; sleep 20
 DB=https://my-app-sync-11ad9-default-rtdb.europe-west1.firebasedatabase.app

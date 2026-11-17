@@ -1129,3 +1129,30 @@ Velocidad máxima en la ciudad	أقصى سرعة جوه المدينة
 Aviso con voz. Sabe si vas por autopista con OpenStreetMap (usa internet; envía tu posición aproximada)	تنبيه بالصوت. بيعرف إنك على طريق سريع من OpenStreetMap (بيستخدم النت وبيبعت مكانك التقريبي)
 Velocidad máxima en autopista	أقصى سرعة على الطريق السريع
 Si la vía tiene su límite en el mapa, se usa ese. Sin internet se usa este	لو الطريق ليه حد سرعة على الخريطة بيستخدمه. من غير نت بيستخدم ده
+Temas	الثيمات
+Tema de colores	ثيم الألوان
+Fondo, tarjetas, botones y acento. Después puedes cambiar el acento	الخلفية والكروت والأزرار ولون التمييز. تقدر تغيّر لون التمييز بعدها
+En modo claro se usa el tema claro; los temas son para el modo oscuro	في الوضع الفاتح بيتستخدم الثيم الفاتح؛ الثيمات للوضع الغامق
+Clásico	الكلاسيكي
+Azul marino y oro	كحلي ودهبي
+Negro carbono	أسود كربون
+Esmeralda	زمردي
+Vino	عنابي
+Noche violeta	ليل بنفسجي
+Grafito y azul	جرافيت وأزرق
+Arena del desierto	رملي صحراوي
+Radio por internet	راديو نت
+Conectando…	بيتصل…
+No se pudo reproducir	مش عارف يشغّل المحطة
+Sonando	شغالة
+Detener	إيقاف
+Buscar emisora (nombre)	دوّر على محطة (بالاسم)
+Favoritas	المفضلة
+Egipto	مصر
+Buscar	بحث
+Nada sonando · elige una emisora	مفيش حاجة شغالة · اختار محطة
+Cargando…	بيحمّل…
+Todavía no tienes favoritas: toca «Egipto» o busca, y toca ☆ para guardarla	لسه مفيش مفضلة: اضغط «مصر» أو دوّر، واضغط ☆ عشان تحفظ المحطة
+Cargando emisoras de radio-browser.info…	بيحمّل المحطات من radio-browser.info…
+%d emisoras	%d محطة
+No se pudo cargar la lista	مش قادر يحمّل القايمة
