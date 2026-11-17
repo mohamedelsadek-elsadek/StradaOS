@@ -65,6 +65,7 @@ final class Roads {
                 ways = out; cLat = lat; cLon = lon; fetchedAt = System.currentTimeMillis();
             } catch (Throwable e) {
                 failedAt = System.currentTimeMillis();
+                android.util.Log.w("ElsadekVoz", "overpass: " + e);
             } finally {
                 loading = false;
             }
