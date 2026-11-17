@@ -216,12 +216,87 @@ final class Extras {
                     .put("car", p.getString("car_name", "")).put("ver", Updates.currentVersion(c)).put("u", t);
                 put(root + "/state.json", st.toString());
                 p.edit().putLong("sync_state_at", t).putLong("sync_ok_at", t).apply();
+                // una vez al día: la libreta (bencina/mantenimiento) para los avisos de mantenimiento atrasado
+                if (t - p.getLong("maint_read_at", 0) > 20 * 3600000L) {
+                    byte[] b = Net.get(root + "/docs.json", 20000);
+                    String due = maintDue(p, new String(b, "UTF-8"), t);
+                    p.edit().putString("maint_due", due).putLong("maint_read_at", t).apply();
+                }
             } catch (Throwable e) {
                 Guard.log("sync: " + e);
             } finally {
                 syncing = false;
             }
         }}).start();
+    }
+
+    /**
+     * Mantenimiento atrasado o cerca, según lo que Mohamed anota en «سجل العربية» (car.html). El kilometraje de hoy se
+     * estima con la última lectura anotada (bencina o mantenimiento con «km») + los viajes medidos después de esa anotación.
+     * Devuelve un JSONArray de frases en árabe para el saludo.
+     */
+    static final Object[][] RULES = {
+        // palabras (cualquiera), nombre hablado, cada km, cada meses
+        {new String[]{"زيت"}, "تغيير الزيت", 5000, 6},
+        {new String[]{"فلتر هوا"}, "فلتر الهوا", 15000, 12},
+        {new String[]{"تكييف"}, "فلتر التكييف", 15000, 12},
+        {new String[]{"فلتر بنزين"}, "فلتر البنزين", 30000, 24},
+        {new String[]{"تيل", "فرامل"}, "تيل الفرامل", 30000, 24},
+        {new String[]{"كاوتش", "اطار", "إطار"}, "الكاوتش", 50000, 48},
+        {new String[]{"ترصيص", "زوايا"}, "الترصيص والزوايا", 10000, 12},
+        {new String[]{"بوجيه"}, "البوجيهات", 40000, 36},
+        {new String[]{"رديتر"}, "مية الرديتر", 40000, 24},
+        {new String[]{"بطارية"}, "البطارية", 0, 30},
+    };
+
+    static String maintDue(SharedPreferences p, String docsJson, long now) {
+        org.json.JSONArray out = new org.json.JSONArray();
+        try {
+            org.json.JSONObject docs = "null".equals(docsJson.trim()) ? new org.json.JSONObject() : new org.json.JSONObject(docsJson);
+            long refT = 0; double refKm = 0;
+            java.util.HashMap<Integer, double[]> last = new java.util.HashMap<Integer, double[]>();   // regla → {km, fecha ms}
+            java.text.SimpleDateFormat df = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US);
+            for (java.util.Iterator<String> it = docs.keys(); it.hasNext(); ) {
+                org.json.JSONObject d = docs.optJSONObject(it.next());
+                if (d == null || d.optInt("del", 0) == 1) continue;
+                String t = d.optString("t");
+                if (!"fuel".equals(t) && !"maint".equals(t)) continue;
+                long when;
+                try { when = df.parse(d.optString("date")).getTime() + 18 * 3600000L; } catch (Throwable e) { when = d.optLong("u", 0); }
+                double km = d.optDouble("km", 0);
+                if (km > 0 && when > refT) { refT = when; refKm = km; }
+                if (!"maint".equals(t)) continue;
+                String title = d.optString("title", "");
+                for (int r = 0; r < RULES.length; r++) {
+                    boolean hit = false;
+                    for (String w : (String[]) RULES[r][0]) if (title.contains(w)) hit = true;
+                    if (!hit) continue;
+                    double[] prev = last.get(r);
+                    if (prev == null || when > prev[1]) last.put(r, new double[]{km, when});
+                }
+            }
+            double odo = 0;
+            if (refT > 0) {
+                odo = refKm;
+                org.json.JSONArray trips = new org.json.JSONArray(p.getString("trip_log", "[]"));
+                for (int i = 0; i < trips.length(); i++) { org.json.JSONObject o = trips.getJSONObject(i); if (o.optLong("start") > refT) odo += o.optDouble("km", 0); }
+            }
+            boolean oilApp = p.getBoolean("oil_on", false);   // si el recordatorio de aceite de la app está activo, no se repite
+            for (int r = 0; r < RULES.length; r++) {
+                double[] l = last.get(r);
+                if (l == null || (r == 0 && oilApp)) continue;
+                String name = (String) RULES[r][1];
+                int everyKm = (Integer) RULES[r][2], everyMo = (Integer) RULES[r][3];
+                double kmSince = l[0] > 0 && odo > 0 ? odo - l[0] : -1;
+                double moSince = (now - l[1]) / (30.44 * 86400000.0);
+                boolean overKm = everyKm > 0 && kmSince >= everyKm, overMo = moSince >= everyMo;
+                boolean nearKm = everyKm > 0 && kmSince >= everyKm - 500;
+                if (overKm) out.put(name + " عدّى معاده، بقالك " + Math.round(kmSince) + " كيلو من آخر مرة.");
+                else if (overMo) out.put(name + " عدّى معاده، بقالك " + Math.round(moSince) + " شهور من آخر مرة.");
+                else if (nearKm) out.put(name + " قرب معاده، فاضل " + Math.max(0, Math.round(everyKm - kmSince)) + " كيلو.");
+            }
+        } catch (Throwable e) { Guard.log("mantenimiento: " + e); }
+        return out.toString();
     }
 
     private static void put(String url, String body) throws Exception {

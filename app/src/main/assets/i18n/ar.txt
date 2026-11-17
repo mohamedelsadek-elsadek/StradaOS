@@ -1125,3 +1125,7 @@ Escuchar el saludo ahora	اسمع الترحيب دلوقتي
 Si no se oye: Ajustes de Android → Texto a voz → instala la voz árabe	لو مش سامع: إعدادات أندرويد ← تحويل النص إلى كلام ← نزّل الصوت العربي
 Dua del viaje	دعاء السفر
 No	لأ
+Velocidad máxima en la ciudad	أقصى سرعة جوه المدينة
+Aviso con voz. Sabe si vas por autopista con OpenStreetMap (usa internet; envía tu posición aproximada)	تنبيه بالصوت. بيعرف إنك على طريق سريع من OpenStreetMap (بيستخدم النت وبيبعت مكانك التقريبي)
+Velocidad máxima en autopista	أقصى سرعة على الطريق السريع
+Si la vía tiene su límite en el mapa, se usa ese. Sin internet se usa este	لو الطريق ليه حد سرعة على الخريطة بيستخدمه. من غير نت بيستخدم ده

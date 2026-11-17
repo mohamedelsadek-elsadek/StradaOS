@@ -24,6 +24,8 @@ adb shell am start -n $A --es prueba ajustes:1; shot 4-ajustes 6
 # asistente de voz: saludo y aviso de velocidad (el texto queda en el registro como ElsadekVoz)
 adb shell am start -n $A --es prueba saludo; sleep 8
 adb shell am start -n $A --es prueba velocidad; sleep 4
+adb shell am start -n $A --es prueba mant-demo; sleep 3
+adb shell am start -n $A --es prueba via; sleep 25
 adb shell am start -n $A --es prueba ajustes:3; sleep 3
 adb exec-out screencap -p > capturas/6-ajustes-voz-a.png
 adb shell input swipe 640 600 640 150 300; sleep 2

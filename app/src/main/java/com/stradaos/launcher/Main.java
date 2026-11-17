@@ -684,6 +684,24 @@ public class Main extends Activity {
                 }
                 else if ("oracion".equals(v)) showPrayerTrip();
                 else if ("saludo".equals(v)) greet(true);
+                else if ("mant-demo".equals(v)) {   // mantenimiento de ejemplo: aceite hace 5200 km, frenos hace 31000 km, batería hace 31 meses
+                    long now = System.currentTimeMillis();
+                    String today = Extras.day(now), old = Extras.day(now - 31L * 30 * 86400000L);
+                    String js = "{\"a\":{\"id\":\"a\",\"t\":\"fuel\",\"date\":\"" + today + "\",\"km\":60000,\"u\":1},"
+                        + "\"b\":{\"id\":\"b\",\"t\":\"maint\",\"title\":\"تغيير زيت\",\"date\":\"" + Extras.day(now - 90L * 86400000L) + "\",\"km\":54800,\"u\":1},"
+                        + "\"c\":{\"id\":\"c\",\"t\":\"maint\",\"title\":\"تيل فرامل\",\"date\":\"" + old + "\",\"km\":29000,\"u\":1},"
+                        + "\"d\":{\"id\":\"d\",\"t\":\"maint\",\"title\":\"بطارية\",\"date\":\"" + old + "\",\"u\":1},"
+                        + "\"e\":{\"id\":\"e\",\"t\":\"maint\",\"title\":\"ترصيص وزوايا\",\"date\":\"" + today + "\",\"km\":60000,\"u\":1}}";
+                    String due = Extras.maintDue(prefs, js, now);
+                    prefs.edit().putString("maint_due", due).apply();
+                    android.util.Log.i("ElsadekVoz", "mantenimiento " + due);
+                }
+                else if ("via".equals(v)) {   // vía rápida cerca del anillo de El Cairo (prueba de Overpass)
+                    Roads.at(29.9890, 31.2110);
+                    h.postDelayed(new Runnable() { public void run() {
+                        android.util.Log.i("ElsadekVoz", "via " + Roads.count() + " vias, aqui=" + Roads.at(29.9890, 31.2110) + ", lejos=" + Roads.at(30.0444, 31.2357));
+                    }}, 20000);
+                }
                 else if ("velocidad".equals(v)) {   // aviso de velocidad simulado (3 lecturas a 130 km/h)
                     for (int k = 0; k < 3; k++) { Location f = new Location("gps"); f.setSpeed(130 / 3.6f); safetyStep(f); }
                 }
@@ -4631,6 +4649,12 @@ public class Main extends Activity {
                 if (left <= 0) t.append("معاد تغيير الزيت عدّى، ياريت تغيره قريب. ");
                 else if (left < 500) t.append("باقي ").append(Math.round(left)).append(" كيلو على تغيير الزيت. ");
             }
+            if (firstToday || force) {
+                try {
+                    org.json.JSONArray md = new org.json.JSONArray(prefs.getString("maint_due", "[]"));
+                    for (int k = 0; k < md.length() && k < 3; k++) t.append(md.getString(k)).append(" ");
+                } catch (Throwable ignored) { }
+            }
             if (firstToday) {
                 float yk = yesterdayKm();
                 if (yk >= 1) t.append("امبارح مشيت ").append(Math.round(yk)).append(" كيلو. ");
@@ -4667,19 +4691,24 @@ public class Main extends Activity {
     private int overCount;
     private long speedWarnAt, fatigueWarnAt;
 
-    /** Aviso de velocidad (3 lecturas seguidas por encima del límite; se repite a los 60 s) y de cansancio. */
+    /**
+     * Aviso de velocidad: límite de ciudad o de vía rápida (motorway/trunk de OpenStreetMap; su maxspeed si lo tiene).
+     * Sin saber la vía (sin internet) se usa el de vía rápida. 3 lecturas seguidas por encima; se repite a los 60 s.
+     */
     private void safetyStep(Location l) {
-        int lim = prefs.getInt("speed_limit", 120);
+        int hwLim = prefs.getInt("speed_limit", 120), cityLim = prefs.getInt("speed_city", 60);
         float kmh = l.hasSpeed() ? l.getSpeed() * 3.6f : 0;
         long now = SystemClock.elapsedRealtime();
+        int road = (hwLim > 0 || cityLim > 0) && (l.getLatitude() != 0 || l.getLongitude() != 0) ? Roads.at(l.getLatitude(), l.getLongitude()) : -1;
+        int lim = road < 0 ? hwLim : road == 0 ? cityLim : road > 1 ? road : hwLim;
         if (lim > 0 && kmh > lim) {
             if (++overCount >= 3 && now - speedWarnAt > 60000) {
                 speedWarnAt = now;
                 Voice.init(this);
-                Voice.say("انتبه، السرعة " + Math.round(kmh) + ". هدّي شوية، الحد " + lim + ".");
-                android.util.Log.i("ElsadekVoz", "velocidad " + Math.round(kmh));
+                Voice.say("انتبه، السرعة " + Math.round(kmh) + ". هدّي شوية، الحد هنا " + lim + ".");
+                android.util.Log.i("ElsadekVoz", "velocidad " + Math.round(kmh) + " limite " + lim + " via " + road);
             }
-        } else if (kmh < lim - 5) overCount = 0;
+        } else if (lim == 0 || kmh < lim - 5) overCount = 0;
         if (prefs.getBoolean("fatigue_on", true) && Extras.tripMin(prefs) >= 120 && now - fatigueWarnAt > 60 * 60000L && kmh > 20) {
             fatigueWarnAt = now;
             Voice.init(this);
@@ -6664,8 +6693,12 @@ public class Main extends Activity {
                 prefs.edit().putString("dua_mode", i == 0 ? "off" : i == 2 ? "always" : "daily").apply(); showSettings(settingsCat); }});
             toggle(va, "Dua del viaje completo", "Al empezar una ruta de más de 50 km con la navegación de StradaOS", prefs.getBoolean("dua_safar", true), new IntCb() { public void on(int i) {
                 prefs.edit().putBoolean("dua_safar", i == 1).apply(); showSettings(settingsCat); }});
+            int cl = prefs.getInt("speed_city", 60);
+            segmented(va, "Velocidad máxima en la ciudad", "Aviso con voz. Sabe si vas por autopista con OpenStreetMap (usa internet; envía tu posición aproximada)",
+                new String[]{"No", "60", "80", "100"}, cl == 0 ? 0 : cl == 80 ? 2 : cl == 100 ? 3 : 1, new IntCb() { public void on(int i) {
+                prefs.edit().putInt("speed_city", i == 0 ? 0 : i == 2 ? 80 : i == 3 ? 100 : 60).apply(); showSettings(settingsCat); }});
             int lim = prefs.getInt("speed_limit", 120);
-            segmented(va, "Aviso de velocidad", "Avisa con voz si pasas este límite", new String[]{"No", "100", "120", "140"}, lim == 0 ? 0 : lim == 100 ? 1 : lim == 140 ? 3 : 2, new IntCb() { public void on(int i) {
+            segmented(va, "Velocidad máxima en autopista", "Si la vía tiene su límite en el mapa, se usa ese. Sin internet se usa este", new String[]{"No", "100", "120", "140"}, lim == 0 ? 0 : lim == 100 ? 1 : lim == 140 ? 3 : 2, new IntCb() { public void on(int i) {
                 prefs.edit().putInt("speed_limit", i == 0 ? 0 : i == 1 ? 100 : i == 3 ? 140 : 120).apply(); showSettings(settingsCat); }});
             toggle(va, "Aviso de cansancio", "Después de 2 horas manejando sin parar te sugiere descansar", prefs.getBoolean("fatigue_on", true), new IntCb() { public void on(int i) {
                 prefs.edit().putBoolean("fatigue_on", i == 1).apply(); showSettings(settingsCat); }});
