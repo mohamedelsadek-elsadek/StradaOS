@@ -193,6 +193,8 @@ public class Main extends Activity {
             SharedPreferences.Editor e = prefs.edit().putBoolean("elsadek_init", true);
             if (!prefs.contains("dock_style")) e.putString("dock_style", "color");
             if (!prefs.contains("speedo")) e.putInt("speedo", 2);
+            // muchas pantallas de carro vienen en inglés de EE. UU. y «automático» las pondría en millas
+            if (!prefs.contains("speed_unit")) e.putString("speed_unit", "kmh");
             e.apply();
         }
         I18n.init(this, prefs);
@@ -4641,9 +4643,12 @@ public class Main extends Activity {
             if (next) r.setBackground(round(RED, 10));
             int col = next ? Color.WHITE : (i == 1 ? MUTED : TEXT);
             TextView a = tv(Extras.PRAYER[i], 17, col, true);
-            r.addView(a, new LinearLayout.LayoutParams(0, -2, 1));
             TextView b = tv(t[i] < 0 ? "--" : clockText(t[i]), 17, col, true);
-            r.addView(b);
+            // en árabe el nombre va a la derecha y la hora a la izquierda
+            boolean rtl = "ar".equals(I18n.lang);
+            a.setGravity(rtl ? Gravity.RIGHT : Gravity.LEFT);
+            if (rtl) { r.addView(b); r.addView(a, new LinearLayout.LayoutParams(0, -2, 1)); }
+            else { r.addView(a, new LinearLayout.LayoutParams(0, -2, 1)); r.addView(b); }
             LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-1, -2);
             rlp.bottomMargin = (int) (4 * s);
             v.addView(r, rlp);
@@ -4672,8 +4677,11 @@ public class Main extends Activity {
         r.setGravity(Gravity.CENTER_VERTICAL);
         r.setPadding((int) (14 * s), (int) (8 * s), (int) (14 * s), (int) (8 * s));
         r.setBackground(round(INNER, 10));
-        r.addView(tv(label, 15, SOFT, false), new LinearLayout.LayoutParams(0, -2, 1));
-        r.addView(tv(value, 15, TEXT, true));
+        TextView a = tv(label, 15, SOFT, false), b = tv(value, 15, TEXT, true);
+        boolean rtl = "ar".equals(I18n.lang);
+        a.setGravity(rtl ? Gravity.RIGHT : Gravity.LEFT);
+        if (rtl) { r.addView(b); r.addView(a, new LinearLayout.LayoutParams(0, -2, 1)); }
+        else { r.addView(a, new LinearLayout.LayoutParams(0, -2, 1)); r.addView(b); }
         LinearLayout box = new LinearLayout(this);
         box.setPadding(0, 0, 0, (int) (6 * s));
         box.addView(r, new LinearLayout.LayoutParams(-1, -2));
