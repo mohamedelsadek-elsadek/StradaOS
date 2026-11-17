@@ -133,6 +133,7 @@ final class Extras {
     private static void tripFlush(SharedPreferences p, long now) {
         if (pendM == 0 && pendS == 0) return;
         SharedPreferences.Editor e0 = p.edit();
+        if (tripPrev != null) e0.putFloat("last_lat", (float) tripPrev.getLatitude()).putFloat("last_lon", (float) tripPrev.getLongitude());
         if (p.getLong("trip_start", 0) == 0) e0.putLong("trip_start", now - pendS * 1000);
         e0.apply();
         p.edit().putFloat("trip_m", p.getFloat("trip_m", 0) + pendM)
@@ -148,6 +149,7 @@ final class Extras {
         float m = p.getFloat("trip_m", 0);
         long secs = p.getLong("trip_s", 0), start = p.getLong("trip_start", 0);
         SharedPreferences.Editor e = p.edit().putFloat("trip_m", 0).putLong("trip_s", 0).putLong("trip_t", 0).putLong("trip_start", 0);
+        if (p.contains("last_lat")) e.putFloat("park_lat", p.getFloat("last_lat", 0)).putFloat("park_lon", p.getFloat("last_lon", 0)).putLong("park_t", last);
         if (m >= 300) {
             e.putFloat("last_trip_m", m).putLong("last_trip_s", secs).putLong("last_trip_end", last);
             try {
@@ -201,7 +203,7 @@ final class Extras {
                 int sent = 0;
                 for (int i = 0; i < q.length(); i++) {
                     org.json.JSONObject d = q.getJSONObject(i);
-                    put(root + "/docs/" + d.getString("id") + ".json", d.toString());
+                    put(root + "/docs/" + d.getString("id") + ".json" + authQ(p), d.toString());
                     sent++;
                 }
                 if (sent > 0) {   // se quitan solo los enviados (pudo llegar otro viaje mientras tanto)
@@ -214,11 +216,17 @@ final class Extras {
                 st.put("odo", Math.round(p.getFloat("odo_base_km", 0) + p.getFloat("odo_gps_m", 0) / 1000f))
                     .put("trip_km", Math.round(tripKm(p) * 100) / 100.0).put("trip_min", tripMin(p))
                     .put("car", p.getString("car_name", "")).put("ver", Updates.currentVersion(c)).put("u", t);
-                put(root + "/state.json", st.toString());
+                for (String k : new String[]{"doc_car", "doc_driver", "doc_ins"}) if (p.contains(k)) st.put(k, p.getString(k, ""));
+                String aq = authQ(p);
+                // مكان الركنة: بيتبعت بس والعربية داخلة بحسابها (القاعدة محمية)
+                if (aq.length() > 0 && p.contains("park_lat"))
+                    st.put("parked", new org.json.JSONObject().put("lat", Math.round(p.getFloat("park_lat", 0) * 1e5) / 1e5)
+                        .put("lon", Math.round(p.getFloat("park_lon", 0) * 1e5) / 1e5).put("t", p.getLong("park_t", 0)));
+                put(root + "/state.json" + aq, st.toString());
                 p.edit().putLong("sync_state_at", t).putLong("sync_ok_at", t).apply();
                 // una vez al día: la libreta (bencina/mantenimiento) para los avisos de mantenimiento atrasado
                 if (t - p.getLong("maint_read_at", 0) > 20 * 3600000L) {
-                    byte[] b = Net.get(root + "/docs.json", 20000);
+                    byte[] b = Net.get(root + "/docs.json" + authQ(p), 20000);
                     String due = maintDue(p, new String(b, "UTF-8"), t);
                     p.edit().putString("maint_due", due).putLong("maint_read_at", t).apply();
                 }
@@ -297,6 +305,72 @@ final class Extras {
             }
         } catch (Throwable e) { Guard.log("mantenimiento: " + e); }
         return out.toString();
+    }
+
+    // ───────────────────────── حساب العربية في برامج محمد (Firebase Auth بـ REST) ─────────────────────────
+    // بيتحفظ refresh token بس (مش الباسورد). كل ساعة بيتجدد الـ id token.
+
+    static String apiKey = "";
+
+    /** «?auth=…» لو العربية داخلة بحسابها، أو "" (بتشتغل زي الأول). في خيط جانبي بس. */
+    static synchronized String authQ(SharedPreferences p) {
+        String rt = p.getString("fb_refresh", "");
+        if (rt.length() == 0 || apiKey.length() == 0) return "";
+        try {
+            if (System.currentTimeMillis() > p.getLong("fb_exp", 0) - 120000) {
+                org.json.JSONObject j = post("https://securetoken.googleapis.com/v1/token?key=" + apiKey,
+                    "grant_type=refresh_token&refresh_token=" + java.net.URLEncoder.encode(rt, "UTF-8"), true);
+                p.edit().putString("fb_id", j.getString("id_token")).putString("fb_refresh", j.getString("refresh_token"))
+                    .putLong("fb_exp", System.currentTimeMillis() + Long.parseLong(j.optString("expires_in", "3600")) * 1000).apply();
+            }
+            return "?auth=" + java.net.URLEncoder.encode(p.getString("fb_id", ""), "UTF-8");
+        } catch (Throwable e) {
+            Guard.log("auth: " + e);
+            return "";
+        }
+    }
+
+    /** دخول بالإيميل والباسورد. null = تمام، غير كده رسالة الخطأ. في خيط جانبي بس. */
+    static String signIn(SharedPreferences p, String email, String pass) {
+        try {
+            org.json.JSONObject b = new org.json.JSONObject().put("email", email).put("password", pass).put("returnSecureToken", true);
+            org.json.JSONObject j = post("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=" + apiKey, b.toString(), false);
+            p.edit().putString("fb_email", j.optString("email", email)).putString("fb_id", j.getString("idToken"))
+                .putString("fb_refresh", j.getString("refreshToken"))
+                .putLong("fb_exp", System.currentTimeMillis() + Long.parseLong(j.optString("expiresIn", "3600")) * 1000)
+                .putLong("sync_state_at", 0).apply();
+            return null;
+        } catch (Throwable e) {
+            String m = String.valueOf(e);
+            return m.contains("INVALID") || m.contains("EMAIL_NOT_FOUND") || m.contains("400") ? "الإيميل أو الباسورد غلط" : "مفيش إنترنت، جرّب تاني";
+        }
+    }
+
+    static void signOut(SharedPreferences p) {
+        p.edit().remove("fb_email").remove("fb_id").remove("fb_refresh").remove("fb_exp").apply();
+    }
+
+    private static org.json.JSONObject post(String url, String body, boolean form) throws Exception {
+        java.net.HttpURLConnection h = Net.open(url, 15000);
+        try {
+            h.setRequestMethod("POST");
+            h.setDoOutput(true);
+            h.setRequestProperty("Content-Type", form ? "application/x-www-form-urlencoded" : "application/json; charset=utf-8");
+            java.io.OutputStream o = h.getOutputStream();
+            o.write(body.getBytes("UTF-8"));
+            o.close();
+            int code = h.getResponseCode();
+            java.io.InputStream in = code < 400 ? h.getInputStream() : h.getErrorStream();
+            java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[4096];
+            int n;
+            while (in != null && (n = in.read(buf)) > 0) bo.write(buf, 0, n);
+            String txt = bo.toString("UTF-8");
+            if (code >= 400) throw new Exception("HTTP " + code + " " + txt);
+            return new org.json.JSONObject(txt);
+        } finally {
+            h.disconnect();
+        }
     }
 
     private static void put(String url, String body) throws Exception {

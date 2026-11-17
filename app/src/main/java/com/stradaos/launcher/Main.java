@@ -204,6 +204,7 @@ public class Main extends Activity {
         }
         I18n.init(this, prefs);
         Updates.init(this);
+        try { Extras.apiKey = getString(R.string.sync_key); } catch (Throwable ignored) { }
         NetRadio.onHome = new Runnable() { public void run() { try { renderTrack(); } catch (Throwable ignored) { } } };
         if (extrasOn()) {
             Voice.init(this);
@@ -4612,7 +4613,8 @@ public class Main extends Activity {
         boolean h24 = "24".equals(fmt) || ("auto".equals(fmt) && android.text.format.DateFormat.is24HourFormat(this));
         timeTv.setText(I18n.sdf(h24 ? "HH:mm" : "h:mm a").format(now));
         String d = I18n.sdf(vertical ? "EEE d MMM" : I18n.datePattern()).format(now);
-        dateTv.setText(d.substring(0, 1).toUpperCase(I18n.loc) + d.substring(1));
+        String hj = extrasOn() && !vertical ? hijri(now.getTime()) : "";
+        dateTv.setText(d.substring(0, 1).toUpperCase(I18n.loc) + d.substring(1) + (hj.length() > 0 ? " · " + hj : ""));
         int hr = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
         String saludo = I18n.t(hr >= 5 && hr < 12 ? "Buenos días" : (hr >= 12 && hr < 19 ? "Buenas tardes" : "Buenas noches"));
         String nombre = prefs.getString("user_name", "").trim();
@@ -4623,6 +4625,84 @@ public class Main extends Activity {
     // ───────────────────────── Elsadek Car: horario de oración y resumen del viaje ─────────────────────────
 
     private TextView prayerTv, tripTv;
+
+    /** Fila con la fecha de vencimiento de un documento; tocar = elegir la fecha. El saludo avisa 14 días antes. */
+    private void docRow(LinearLayout card, final String key, final String title) {
+        String v = prefs.getString(key, "");
+        int d = daysTo(v);
+        String sub = v.length() == 0 ? I18n.t("Toca para poner la fecha de vencimiento")
+            : d < 0 ? I18n.f("Venció hace %d días", -d) : I18n.f("Vence en %d días", d);
+        row(card, title, sub, v.length() == 0 ? "—" : v, new Runnable() { public void run() {
+            Calendar c = Calendar.getInstance();
+            String cur = prefs.getString(key, "");
+            if (cur.length() == 10) try {
+                c.set(Integer.parseInt(cur.substring(0, 4)), Integer.parseInt(cur.substring(5, 7)) - 1, Integer.parseInt(cur.substring(8, 10)));
+            } catch (Throwable ignored) { }
+            new android.app.DatePickerDialog(Main.this, new android.app.DatePickerDialog.OnDateSetListener() {
+                public void onDateSet(android.widget.DatePicker dp, int y, int m, int dd) {
+                    prefs.edit().putString(key, String.format(java.util.Locale.US, "%04d-%02d-%02d", y, m + 1, dd)).putLong("sync_state_at", 0).apply();
+                    showSettings(settingsCat);
+                }
+            }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show();
+        }});
+    }
+
+    /** Días que faltan hasta yyyy-MM-dd (negativo = ya pasó); Integer.MAX_VALUE si no hay fecha. */
+    private static int daysTo(String ymd) {
+        if (ymd == null || ymd.length() != 10) return Integer.MAX_VALUE;
+        try {
+            Calendar t = Calendar.getInstance();
+            t.set(Calendar.HOUR_OF_DAY, 12); t.set(Calendar.MINUTE, 0);
+            Calendar d = (Calendar) t.clone();
+            d.set(Integer.parseInt(ymd.substring(0, 4)), Integer.parseInt(ymd.substring(5, 7)) - 1, Integer.parseInt(ymd.substring(8, 10)));
+            return (int) Math.round((d.getTimeInMillis() - t.getTimeInMillis()) / 86400000.0);
+        } catch (Throwable e) { return Integer.MAX_VALUE; }
+    }
+
+    /** Ventana para entrar con la cuenta del carro en los programas de Mohamed. */
+    private void carLogin() {
+        LinearLayout v = new LinearLayout(this);
+        v.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (20 * s);
+        v.setPadding(pad, pad / 2, pad, 0);
+        final android.widget.EditText em = field(), pw = field();
+        em.setSingleLine(true); pw.setSingleLine(true);
+        em.setHint("car@elsadek.app");
+        em.setText(prefs.getString("fb_email", "car@elsadek.app"));
+        em.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        pw.setHint(I18n.t("Contraseña"));
+        pw.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        v.addView(em);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.topMargin = (int) (10 * s);
+        v.addView(pw, lp);
+        new TB(this, dlg()).setTitle("Cuenta de tus programas").setView(v)
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Entrar", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                final String e = em.getText().toString().trim(), p = pw.getText().toString();
+                toast("Entrando…");
+                new Thread(new Runnable() { public void run() {
+                    final String err = Extras.signIn(prefs, e, p);
+                    h.post(new Runnable() { public void run() {
+                        if (err == null) { toast("Listo: el carro entró con su cuenta"); Extras.sync(Main.this, prefs, getString(R.string.sync_db)); }
+                        else toast(err);
+                        if (settingsView != null) showSettings(settingsCat);
+                    }});
+                }}).start();
+            }}).show();
+    }
+
+    /** Fecha hijri (Umm al-Qura, Android 7+): «27 جمادى الأولى». Vacío si no se puede. */
+    static String hijri(long ms) {
+        if (android.os.Build.VERSION.SDK_INT < 24) return "";
+        try {
+            android.icu.util.IslamicCalendar c = new android.icu.util.IslamicCalendar();
+            c.setCalculationType(android.icu.util.IslamicCalendar.CalculationType.ISLAMIC_UMALQURA);
+            c.setTimeInMillis(ms);
+            String[] m = {"محرم", "صفر", "ربيع الأول", "ربيع الآخر", "جمادى الأولى", "جمادى الآخرة", "رجب", "شعبان", "رمضان", "شوال", "ذو القعدة", "ذو الحجة"};
+            return c.get(android.icu.util.Calendar.DAY_OF_MONTH) + " " + m[c.get(android.icu.util.Calendar.MONTH)];
+        } catch (Throwable e) { return ""; }
+    }
 
     // ───────────────────────── radio por internet ─────────────────────────
 
@@ -4763,7 +4843,10 @@ public class Main extends Activity {
                 String d = new java.text.SimpleDateFormat("EEEE d MMMM", new Locale("ar")).format(c.getTime());
                 StringBuilder dd = new StringBuilder();
                 for (char ch : d.toCharArray()) dd.append(ch >= '\u0660' && ch <= '\u0669' ? (char) ('0' + ch - '\u0660') : ch);
-                t.append("النهارده ").append(dd).append(". ");
+                t.append("النهارده ").append(dd);
+                String hj = hijri(now);
+                if (hj.length() > 0) t.append("، ").append(hj);
+                t.append(". ");
             }
             if (weatherNow != null) {
                 t.append("الجو ").append(Voice.sky(weatherNow.code)).append("، ودرجة الحرارة دلوقتي ").append(Math.round(weatherNow.temp));
@@ -4785,6 +4868,14 @@ public class Main extends Activity {
                 else if (left < 500) t.append("باقي ").append(Math.round(left)).append(" كيلو على تغيير الزيت. ");
             }
             if (firstToday || force) {
+                String[][] docs = {{"doc_car", "رخصة العربية"}, {"doc_driver", "رخصة القيادة"}, {"doc_ins", "تأمين العربية"}};
+                for (String[] dk : docs) {
+                    int dl = daysTo(prefs.getString(dk[0], ""));
+                    if (dl == Integer.MAX_VALUE) continue;
+                    if (dl < 0) t.append(dk[1]).append(" خلصت من ").append(-dl).append(" يوم، جددها. ");
+                    else if (dl == 0) t.append(dk[1]).append(" بتخلص النهارده. ");
+                    else if (dl <= 14) t.append(dk[1]).append(" بتخلص بعد ").append(dl).append(" يوم. ");
+                }
                 try {
                     org.json.JSONArray md = new org.json.JSONArray(prefs.getString("maint_due", "[]"));
                     for (int k = 0; k < md.length() && k < 3; k++) t.append(md.getString(k)).append(" ");
@@ -6615,6 +6706,19 @@ public class Main extends Activity {
         row(c, "Tu nombre", "Aparece en el saludo de la pantalla de inicio", prefs.getString("user_name", ""), edit("user_name", "Tu nombre", ""));
         row(c, "Nombre del vehículo", null, prefs.getString("car_name", "Mi vehículo"), edit("car_name", "Nombre del vehículo", "Mi vehículo"));
         row(c, "Etiqueta", "Versión o placa. Déjala vacía para ocultarla", prefs.getString("car_tag", ""), edit("car_tag", "Etiqueta (vacío para ocultarla)", ""));
+        if (extrasOn()) {
+            LinearLayout acc = section(body, "Cuenta de tus programas");
+            final String em = prefs.getString("fb_email", "");
+            row(acc, em.length() > 0 ? "Conectada" : "Sin conectar",
+                em.length() > 0 ? em : "Entra una vez con la cuenta del carro (car@elsadek.app) para que los viajes y el lugar de estacionamiento lleguen protegidos a «سجل العربية»",
+                em.length() > 0 ? "Salir" : "Entrar", new Runnable() { public void run() {
+                    if (em.length() > 0) { Extras.signOut(prefs); showSettings(settingsCat); } else carLogin();
+                }});
+            LinearLayout docs = section(body, "Documentos");
+            docRow(docs, "doc_car", "Licencia del vehículo");
+            docRow(docs, "doc_driver", "Licencia de conducir");
+            docRow(docs, "doc_ins", "Seguro del carro");
+        }
         LinearLayout f = section(body, "Foto");
         row(f, "Foto del vehículo", "Se usa tal cual; si quieres, le puedes quitar el fondo", CarPhoto.load(this) != null ? "Configurada" : "Sin foto",
             new Runnable() { public void run() { photoMenu(); } });

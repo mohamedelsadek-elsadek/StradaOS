@@ -1157,3 +1157,19 @@ Cargando emisoras de radio-browser.info…	بيحمّل المحطات من radi
 %d emisoras	%d محطة
 No se pudo cargar la lista	مش قادر يحمّل القايمة
 En pausa	متوقفة مؤقتًا
+Cuenta de tus programas	حساب برامجك
+Conectada	متصلة
+Sin conectar	مش متصلة
+Entra una vez con la cuenta del carro (car@elsadek.app) para que los viajes y el lugar de estacionamiento lleguen protegidos a «سجل العربية»	ادخل مرة واحدة بحساب العربية (car@elsadek.app) عشان الرحلات ومكان الركنة يوصلوا «سجل العربية» وهم محميين
+Salir	خروج
+Entrar	دخول
+Documentos	الأوراق
+Licencia del vehículo	رخصة العربية
+Licencia de conducir	رخصة القيادة
+Seguro del carro	تأمين العربية
+Toca para poner la fecha de vencimiento	اضغط وحط تاريخ الانتهاء
+Venció hace %d días	خلصت من %d يوم
+Vence en %d días	بتخلص بعد %d يوم
+Contraseña	الباسورد
+Entrando…	بيدخل…
+Listo: el carro entró con su cuenta	تمام: العربية دخلت بحسابها

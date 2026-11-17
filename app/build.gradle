@@ -37,6 +37,8 @@ android {
         resValue 'string', 'upd_apk', elsadek ? 'ElsadekCar.apk' : ''
         // sincronización de viajes con la base de datos de los programas de Mohamed (vacío = sin sincronizar)
         resValue 'string', 'sync_db', elsadek ? 'https://my-app-sync-11ad9-default-rtdb.europe-west1.firebasedatabase.app' : ''
+        // مفتاح الويب العام لمشروع Firebase (مش سري): لتسجيل دخول العربية بحسابها
+        resValue 'string', 'sync_key', elsadek ? 'AIzaSyAp3pbA-jRE1IhgZiBGsC18s8XOC9lWATs' : ''
         // horario de oración y resumen del viaje en la barra de arriba (Ajustes los puede apagar/encender)
         resValue 'bool', 'extras_on', elsadek ? 'true' : 'false'
     }
