@@ -1,6 +1,6 @@
 name: MoCar en emuladores
 
-# Instala mocar/MoCar-Elsadek.apk en emuladores de varias versiones de Android, lo abre y guarda capturas.
+# Instala mocar/Elsadek.apk en emuladores de varias versiones de Android, lo abre y guarda capturas.
 on:
   push:
     branches: [ 'claude/**' ]

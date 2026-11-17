@@ -5,7 +5,7 @@ mkdir -p out
 adb wait-for-device
 adb shell settings put global window_animation_scale 0
 if [ "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" -ge 23 ]; then G=-g; else G=; fi
-adb install -r $G mocar/MoCar-Elsadek.apk > out/install.txt 2>&1; cat out/install.txt
+adb install -r $G mocar/Elsadek.apk > out/install.txt 2>&1; cat out/install.txt
 grep -q Success out/install.txt || { echo "INSTALL FAILED"; exit 1; }
 adb logcat -c
 adb shell am start -n com.mocar.launcher/.Main
