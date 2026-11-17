@@ -21,6 +21,8 @@ final class Roads {
     private static volatile double cLat = Double.NaN, cLon = Double.NaN;
     private static volatile long fetchedAt, failedAt;
     private static volatile boolean loading;
+    private static final String[] HOSTS = {"https://overpass-api.de/api/interpreter",
+        "https://overpass.private.coffee/api/interpreter", "https://maps.mail.ru/osm/tools/overpass/api/interpreter"};
 
     /** -1 = desconocido; 0 = ciudad; >0 = vía rápida (el valor es su maxspeed, o 1 si no tiene). */
     static int at(double lat, double lon) {
@@ -46,7 +48,13 @@ final class Roads {
             try {
                 String q = "[out:json][timeout:20];way(around:1500," + lat + "," + lon + ")"
                     + "[highway~\"^(motorway|trunk|motorway_link|trunk_link)$\"];out tags geom;";
-                byte[] b = Net.get("https://overpass-api.de/api/interpreter?data=" + java.net.URLEncoder.encode(q, "UTF-8"), 25000);
+                byte[] b = null;
+                Throwable err = null;
+                for (String host : HOSTS) {   // servidor principal y dos copias públicas, por si uno no responde
+                    try { b = Net.get(host + "?data=" + java.net.URLEncoder.encode(q, "UTF-8"), 25000); break; }
+                    catch (Throwable e) { err = e; android.util.Log.w("ElsadekVoz", "overpass " + host + ": " + e); }
+                }
+                if (b == null) throw err != null ? new Exception(err) : new Exception("sin respuesta");
                 JSONArray el = new JSONObject(new String(b, "UTF-8")).optJSONArray("elements");
                 List<Way> out = new ArrayList<Way>();
                 for (int i = 0; el != null && i < el.length(); i++) {

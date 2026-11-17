@@ -7,6 +7,8 @@ A=$P/com.stradaos.launcher.Main
 adb wait-for-device
 # como en Egipto: hora de El Cairo y ubicación en El Cairo
 adb root; sleep 3; adb wait-for-device
+adb shell sysctl -w net.ipv6.conf.all.disable_ipv6=1 >/dev/null 2>&1   # la máquina de GitHub no tiene salida IPv6
+adb shell sysctl -w net.ipv6.conf.default.disable_ipv6=1 >/dev/null 2>&1
 adb shell settings put global auto_time_zone 0
 adb shell setprop persist.sys.timezone Africa/Cairo
 adb shell cmd location set-location-enabled true || true
@@ -27,7 +29,9 @@ adb shell am start -n $A --es prueba velocidad; sleep 4
 adb shell am start -n $A --es prueba mant-demo; sleep 3
 adb shell am start -n $A --es prueba via; sleep 25
 Q='[out:json][timeout:20];way(around:1500,29.9890,31.2110)[highway~"^(motorway|trunk|motorway_link|trunk_link)$"];out tags geom;'
-echo "overpass (runner): $(curl -s -m 40 -o /dev/null -w '%{http_code} %{size_download}' --data-urlencode "data=$Q" https://overpass-api.de/api/interpreter)" > capturas/overpass.txt
+for U in https://overpass-api.de/api/interpreter https://overpass.private.coffee/api/interpreter https://maps.mail.ru/osm/tools/overpass/api/interpreter; do
+  echo "$U: $(curl -s -m 40 -A 'ElsadekCar/1.0 (Android car launcher)' -o /dev/null -w '%{http_code} %{size_download}' -G --data-urlencode "data=$Q" $U)" >> capturas/overpass.txt
+done
 adb shell am start -n $A --es prueba ajustes:3; sleep 3
 adb exec-out screencap -p > capturas/6-ajustes-voz-a.png
 adb shell input swipe 640 600 640 150 300; sleep 2
