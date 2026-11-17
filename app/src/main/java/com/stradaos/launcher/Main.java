@@ -6713,23 +6713,23 @@ public class Main extends Activity {
         int curT = prefs.getInt("palette", 0);
         for (int i = 0; i < THEMES.length; i++) {
             final int ti = i;
-            final int[] c = (int[]) THEMES[i][1];
+            final int[] pc = (int[]) THEMES[i][1];
             final int acc = (Integer) THEMES[i][2];
             LinearLayout cell = new LinearLayout(this);
             cell.setOrientation(LinearLayout.VERTICAL);
             cell.setGravity(Gravity.CENTER_HORIZONTAL);
             FrameLayout pv = new FrameLayout(this);   // miniatura: fondo, dos tarjetas, barra y acento
             GradientDrawable bg = new GradientDrawable();
-            bg.setColor(c[0]); bg.setCornerRadius(10 * s);
+            bg.setColor(pc[0]); bg.setCornerRadius(10 * s);
             if (i == curT) bg.setStroke((int) (3 * s), RED);
             pv.setBackground(bg);
-            View c1 = new View(this); c1.setBackground(round(c[1], 5));
+            View c1 = new View(this); c1.setBackground(round(pc[1], 5));
             FrameLayout.LayoutParams l1 = new FrameLayout.LayoutParams((int) (40 * s), (int) (34 * s)); l1.leftMargin = (int) (8 * s); l1.topMargin = (int) (8 * s);
             pv.addView(c1, l1);
-            View c2 = new View(this); c2.setBackground(round(c[1], 5));
+            View c2 = new View(this); c2.setBackground(round(pc[1], 5));
             FrameLayout.LayoutParams l2 = new FrameLayout.LayoutParams((int) (40 * s), (int) (34 * s)); l2.leftMargin = (int) (52 * s); l2.topMargin = (int) (8 * s);
             pv.addView(c2, l2);
-            View dk = new View(this); dk.setBackgroundColor(c[4]);
+            View dk = new View(this); dk.setBackgroundColor(pc[4]);
             FrameLayout.LayoutParams l3 = new FrameLayout.LayoutParams(-1, (int) (14 * s)); l3.gravity = Gravity.BOTTOM;
             pv.addView(dk, l3);
             View ac = new View(this);
