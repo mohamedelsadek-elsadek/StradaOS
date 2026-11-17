@@ -26,11 +26,13 @@ adb shell am start -n $A --es prueba saludo; sleep 8
 adb shell am start -n $A --es prueba velocidad; sleep 4
 adb shell am start -n $A --es prueba mant-demo; sleep 3
 adb shell am start -n $A --es prueba via; sleep 25
+Q='[out:json][timeout:20];way(around:1500,29.9890,31.2110)[highway~"^(motorway|trunk|motorway_link|trunk_link)$"];out tags geom;'
+echo "overpass (runner): $(curl -s -m 40 -o /dev/null -w '%{http_code} %{size_download}' --data-urlencode "data=$Q" https://overpass-api.de/api/interpreter)" > capturas/overpass.txt
 adb shell am start -n $A --es prueba ajustes:3; sleep 3
 adb exec-out screencap -p > capturas/6-ajustes-voz-a.png
 adb shell input swipe 640 600 640 150 300; sleep 2
 adb exec-out screencap -p > capturas/6-ajustes-voz-b.png
-adb logcat -d | grep -E "ElsadekVoz|TextToSpeech|voz:" | tail -20 > capturas/voz.txt
+adb logcat -d | grep -E "ElsadekVoz|voz:" | tail -20 > capturas/voz.txt
 # viaje terminado → se sincroniza con Firebase (car_log_test en la versión de prueba)
 adb shell am start -n $A --es prueba viaje-cerrar; sleep 20
 DB=https://my-app-sync-11ad9-default-rtdb.europe-west1.firebasedatabase.app
