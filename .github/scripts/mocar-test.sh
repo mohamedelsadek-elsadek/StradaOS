@@ -16,7 +16,7 @@ adb shell am start -n com.mocar.launcher/.Main; sleep 6
 adb exec-out screencap -p > out/2-reabierto.png
 adb shell input keyevent KEYCODE_HOME; sleep 4
 adb exec-out screencap -p > out/3-inicio.png
-adb shell ps | grep com.mocar.launcher > out/pid.txt
+{ adb shell ps -A 2>/dev/null; adb shell ps; } | grep com.mocar.launcher | sort -u > out/pid.txt
 adb logcat -d -b crash > out/crash.txt 2>/dev/null || true
 adb logcat -d | grep -E "FATAL|AndroidRuntime|mocar" | tail -200 > out/logcat.txt
 echo "pid: $(cat out/pid.txt)"; echo "crash lines: $(grep -c FATAL out/logcat.txt)"
