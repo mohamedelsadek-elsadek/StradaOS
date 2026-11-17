@@ -1109,3 +1109,19 @@ Horario de oración y resumen del viaje	مواعيد الأذان وملخص ا�
 Arriba: el próximo adhan y lo recorrido en este viaje. Toca para ver el horario completo	فوق: الأذان الجاي والمسافة اللي مشيتها في الرحلة دي. اضغط عليهم تشوف كل المواعيد
 Colores	ألوان
 Apps: el ícono de la app que abre cada botón (radio, cámara…). Colores: un color por botón	Apps: أيقونة التطبيق اللي بيفتحه كل زرار (الراديو، الكاميرا…). ألوان: كل زرار بلون
+Asistente de voz	المساعد الصوتي
+Saludo al encender el carro	الترحيب لما العربية تشتغل
+Hora, clima, próximo adhan, recordatorios y dua del vehículo	الساعة والجو والأذان الجاي والتنبيهات ودعاء الركوب
+Dua del vehículo	دعاء الركوب
+Una vez al día	مرة في اليوم
+Cada vez	كل مرة
+Dua del viaje completo	دعاء السفر كامل
+Al empezar una ruta de más de 50 km con la navegación de StradaOS	لما تبدأ رحلة أطول من 50 كيلو بالملاحة اللي في التطبيق
+Aviso de velocidad	تنبيه السرعة
+Avisa con voz si pasas este límite	ينبهك بالصوت لو عديت الحد ده
+Aviso de cansancio	تنبيه التعب
+Después de 2 horas manejando sin parar te sugiere descansar	بعد ساعتين سواقة من غير وقفة يقترح عليك تريّح
+Escuchar el saludo ahora	اسمع الترحيب دلوقتي
+Si no se oye: Ajustes de Android → Texto a voz → instala la voz árabe	لو مش سامع: إعدادات أندرويد ← تحويل النص إلى كلام ← نزّل الصوت العربي
+Dua del viaje	دعاء السفر
+No	لأ

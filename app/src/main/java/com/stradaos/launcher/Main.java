@@ -197,8 +197,18 @@ public class Main extends Activity {
             if (!prefs.contains("speed_unit")) e.putString("speed_unit", "kmh");
             e.apply();
         }
+        if (getResources().getBoolean(R.bool.extras_on) && !prefs.getBoolean("elsadek_init2", false)) {
+            SharedPreferences.Editor e = prefs.edit().putBoolean("elsadek_init2", true);
+            if (prefs.getString("user_name", "").trim().length() == 0) e.putString("user_name", "محمد");
+            e.apply();
+        }
         I18n.init(this, prefs);
         Updates.init(this);
+        if (extrasOn()) {
+            Voice.init(this);
+            // la pantalla arrancó (carro encendido): saludo, si no hubo uno en los últimos 15 min
+            if (!greetedProcess) { greetedProcess = true; h.postDelayed(new Runnable() { public void run() { greet(false); } }, 9000); }
+        }
         LiveMapView.headingUp = prefs.getBoolean("map_heading", false);
         lm = (LocationManager) getSystemService(LOCATION_SERVICE);
         if (getPackageName().endsWith(".debug") && getIntent() != null && "saltar".equals(getIntent().getStringExtra("prueba")))
@@ -673,6 +683,10 @@ public class Main extends Activity {
                     updateExtras();
                 }
                 else if ("oracion".equals(v)) showPrayerTrip();
+                else if ("saludo".equals(v)) greet(true);
+                else if ("velocidad".equals(v)) {   // aviso de velocidad simulado (3 lecturas a 130 km/h)
+                    for (int k = 0; k < 3; k++) { Location f = new Location("gps"); f.setSpeed(130 / 3.6f); safetyStep(f); }
+                }
                 else if ("viaje-cerrar".equals(v)) {   // termina el viaje de ejemplo y lo sincroniza (en car_log_test)
                     prefs.edit().putLong("trip_t", System.currentTimeMillis() - Extras.TRIP_GAP - 1000)
                         .putLong("trip_start", System.currentTimeMillis() - Extras.TRIP_GAP - 601000).apply();
@@ -1706,7 +1720,7 @@ public class Main extends Activity {
     /** Distancia medida por el GPS (también con StradaOS detrás de otras apps). */
     private final LocationListener odoListener = new LocationListener() {
         public void onLocationChanged(Location l) {
-            if (extrasOn()) try { Extras.tripStep(prefs, l); } catch (Throwable ignored) { }
+            if (extrasOn()) try { Extras.tripStep(prefs, l); safetyStep(l); } catch (Throwable ignored) { }
             try { odoStep(l); } catch (Throwable ignored) { }
         }
         public void onStatusChanged(String p, int st, Bundle e) { }
@@ -4229,6 +4243,10 @@ public class Main extends Activity {
     private void activateChosenRoute(Nav.Route r) {
         Nav.activate(this, r);
         Nav.announceStart(this, r);
+        try {   // Elsadek Car: viaje de más de 50 km → dua del viaje completo, después del aviso de la ruta
+            if (extrasOn() && prefs.getBoolean("dua_safar", true) && r.cumDistM[r.cumDistM.length - 1] > 50000)
+                h.postDelayed(new Runnable() { public void run() { sayDuaSafar(); } }, 7000);
+        } catch (Throwable ignored) { }
         LiveMapView.headingUp = true;
         updateNavHud();
         if (liveMap != null) liveMap.invalidate();
@@ -4571,6 +4589,102 @@ public class Main extends Activity {
     // ───────────────────────── Elsadek Car: horario de oración y resumen del viaje ─────────────────────────
 
     private TextView prayerTv, tripTv;
+    private static boolean greetedProcess;
+
+    /** Saludo al encender el carro (Elsadek Car). force = botón «escuchar ahora». */
+    private void greet(boolean force) {
+        try {
+            long now = System.currentTimeMillis();
+            if (!force && (!prefs.getBoolean("greet_on", true) || now - prefs.getLong("greet_last", 0) < 15 * 60000L)) return;
+            Calendar c = Calendar.getInstance();
+            int hr = c.get(Calendar.HOUR_OF_DAY), mi = c.get(Calendar.MINUTE);
+            String day = Extras.day(now);
+            boolean firstToday = !day.equals(prefs.getString("greet_day", ""));
+            prefs.edit().putLong("greet_last", now).putString("greet_day", day).apply();
+            Voice.init(this);
+            StringBuilder t = new StringBuilder();
+            String name = prefs.getString("user_name", "").trim();
+            t.append(hr >= 4 && hr < 12 ? "صباح الخير" : "مساء الخير").append(name.length() > 0 ? " يا " + name : "").append(". ");
+            t.append(Voice.timeWords(hr, mi)).append(". ");
+            if (firstToday || force) {
+                String d = new java.text.SimpleDateFormat("EEEE d MMMM", new Locale("ar")).format(c.getTime());
+                StringBuilder dd = new StringBuilder();
+                for (char ch : d.toCharArray()) dd.append(ch >= '\u0660' && ch <= '\u0669' ? (char) ('0' + ch - '\u0660') : ch);
+                t.append("النهارده ").append(dd).append(". ");
+            }
+            if (weatherNow != null) {
+                t.append("الجو ").append(Voice.sky(weatherNow.code)).append("، ودرجة الحرارة دلوقتي ").append(Math.round(weatherNow.temp));
+                Weather.Day td = weatherNow.today();
+                if (td != null) t.append("، والعظمى النهارده ").append(Math.round(td.hi));
+                t.append(". ");
+                if (td != null && td.rain >= 40) t.append("واحتمال مطر ").append(td.rain).append(" في المية، خلي بالك من الطريق. ");
+                boolean fog = weatherNow.code == 45 || weatherNow.code == 48;
+                for (Weather.Hour x : weatherNow.hours) if (x.code == 45 || x.code == 48) fog = true;
+                if (fog) t.append("فيه شبورة، هدّي السرعة وشغّل الفوانيس. ");
+            }
+            double[] sp = prayerSpot();
+            int[] n = Extras.nextPrayer(sp[0], sp[1], c);
+            t.append("أذان ").append(Voice.PRAYER_AR[n[0]]).append(" ").append(Voice.clockWords(n[2] / 60, n[2] % 60))
+             .append("، بعد ").append(Voice.durWords(n[1])).append(". ");
+            if (oilOn()) {
+                float left = oilNextKm() - odoKm();
+                if (left <= 0) t.append("معاد تغيير الزيت عدّى، ياريت تغيره قريب. ");
+                else if (left < 500) t.append("باقي ").append(Math.round(left)).append(" كيلو على تغيير الزيت. ");
+            }
+            if (firstToday) {
+                float yk = yesterdayKm();
+                if (yk >= 1) t.append("امبارح مشيت ").append(Math.round(yk)).append(" كيلو. ");
+                if (c.get(Calendar.DAY_OF_WEEK) == Calendar.FRIDAY) t.append("جمعة مباركة، متنساش سورة الكهف والصلاة على النبي. ");
+            }
+            if (hr >= 0 && hr < 5) t.append("الوقت متأخر، لو حسيت بنعاس اركن وريّح شوية. ");
+            t.append("متنساش حزام الأمان.");
+            Voice.say(t.toString());
+            android.util.Log.i("ElsadekVoz", t.toString());
+            String dm = prefs.getString("dua_mode", "daily");
+            if ("always".equals(dm) || ("daily".equals(dm) && (firstToday || force))) {
+                if (Voice.hasAsset(this, "voice/dua_rukub.mp3")) Voice.play("voice/dua_rukub.mp3");
+                else Voice.say(Voice.DUA_RUKUB);
+            }
+        } catch (Throwable e) { Guard.log("saludo: " + e); }
+    }
+
+    private void sayDuaSafar() {
+        Voice.init(this);
+        if (Voice.hasAsset(this, "voice/dua_safar.mp3")) Voice.play("voice/dua_safar.mp3");
+        else Voice.say(Voice.DUA_SAFAR);
+    }
+
+    private float yesterdayKm() {
+        String y = Extras.day(System.currentTimeMillis() - 86400000L);
+        float km = 0;
+        try {
+            org.json.JSONArray a = new org.json.JSONArray(prefs.getString("trip_log", "[]"));
+            for (int i = 0; i < a.length(); i++) { org.json.JSONObject o = a.getJSONObject(i); if (y.equals(o.optString("date"))) km += o.optDouble("km", 0); }
+        } catch (Throwable ignored) { }
+        return km;
+    }
+
+    private int overCount;
+    private long speedWarnAt, fatigueWarnAt;
+
+    /** Aviso de velocidad (3 lecturas seguidas por encima del límite; se repite a los 60 s) y de cansancio. */
+    private void safetyStep(Location l) {
+        int lim = prefs.getInt("speed_limit", 120);
+        float kmh = l.hasSpeed() ? l.getSpeed() * 3.6f : 0;
+        long now = SystemClock.elapsedRealtime();
+        if (lim > 0 && kmh > lim) {
+            if (++overCount >= 3 && now - speedWarnAt > 60000) {
+                speedWarnAt = now;
+                Voice.init(this);
+                Voice.say("انتبه، السرعة " + Math.round(kmh) + ". هدّي شوية، الحد " + lim + ".");
+            }
+        } else if (kmh < lim - 5) overCount = 0;
+        if (prefs.getBoolean("fatigue_on", true) && Extras.tripMin(prefs) >= 120 && now - fatigueWarnAt > 60 * 60000L && kmh > 20) {
+            fatigueWarnAt = now;
+            Voice.init(this);
+            Voice.say("بقالك " + Voice.durWords((int) Extras.tripMin(prefs)) + " سايق من غير راحة. ياريت تقف في أقرب استراحة وتريّح عشر دقايق.");
+        }
+    }
 
     /** Horario de oración y viaje: encendidos por defecto en Elsadek Car (R.bool.extras_on), apagados en StradaOS. */
     private boolean extrasOn() {
@@ -4676,6 +4790,7 @@ public class Main extends Activity {
         android.widget.ScrollView sv = new android.widget.ScrollView(this);
         sv.addView(v);
         new TB(this, dlg()).setTitle("Horario de oración").setView(sv)
+            .setNeutralButton("Dua del viaje", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { sayDuaSafar(); } })
             .setPositiveButton("Cerrar", null).show();
     }
 
@@ -6539,6 +6654,23 @@ public class Main extends Activity {
             }
         }
         LinearLayout top = section(body, "Barra de arriba");
+        if (extrasOn()) {
+            LinearLayout va = section(body, "Asistente de voz");
+            toggle(va, "Saludo al encender el carro", "Hora, clima, próximo adhan, recordatorios y dua del vehículo", prefs.getBoolean("greet_on", true), new IntCb() { public void on(int i) {
+                prefs.edit().putBoolean("greet_on", i == 1).apply(); showSettings(settingsCat); }});
+            String dm2 = prefs.getString("dua_mode", "daily");
+            segmented(va, "Dua del vehículo", null, new String[]{"No", "Una vez al día", "Cada vez"}, "off".equals(dm2) ? 0 : "always".equals(dm2) ? 2 : 1, new IntCb() { public void on(int i) {
+                prefs.edit().putString("dua_mode", i == 0 ? "off" : i == 2 ? "always" : "daily").apply(); showSettings(settingsCat); }});
+            toggle(va, "Dua del viaje completo", "Al empezar una ruta de más de 50 km con la navegación de StradaOS", prefs.getBoolean("dua_safar", true), new IntCb() { public void on(int i) {
+                prefs.edit().putBoolean("dua_safar", i == 1).apply(); showSettings(settingsCat); }});
+            int lim = prefs.getInt("speed_limit", 120);
+            segmented(va, "Aviso de velocidad", "Avisa con voz si pasas este límite", new String[]{"No", "100", "120", "140"}, lim == 0 ? 0 : lim == 100 ? 1 : lim == 140 ? 3 : 2, new IntCb() { public void on(int i) {
+                prefs.edit().putInt("speed_limit", i == 0 ? 0 : i == 1 ? 100 : i == 3 ? 140 : 120).apply(); showSettings(settingsCat); }});
+            toggle(va, "Aviso de cansancio", "Después de 2 horas manejando sin parar te sugiere descansar", prefs.getBoolean("fatigue_on", true), new IntCb() { public void on(int i) {
+                prefs.edit().putBoolean("fatigue_on", i == 1).apply(); showSettings(settingsCat); }});
+            row(va, "Escuchar el saludo ahora", Voice.arabicOk() ? null : "Si no se oye: Ajustes de Android → Texto a voz → instala la voz árabe", null,
+                new Runnable() { public void run() { greet(true); } });
+        }
         toggle(top, "Horario de oración y resumen del viaje", "Arriba: el próximo adhan y lo recorrido en este viaje. Toca para ver el horario completo",
             extrasOn(), new IntCb() { public void on(int i) {
                 prefs.edit().putBoolean("extras_on", i == 1).apply(); startOdo(); rebuild();
@@ -7370,6 +7502,8 @@ public class Main extends Activity {
         public void onReceive(Context c, Intent i) {
             if (Intent.ACTION_SCREEN_OFF.equals(i.getAction())) { screenOffAt = SystemClock.elapsedRealtime(); return; }
             if (screenOffAt > 0 && SystemClock.elapsedRealtime() - screenOffAt > 5 * 60000L && hasWindowFocus()) runBootApp(1500);
+            if (screenOffAt > 0 && SystemClock.elapsedRealtime() - screenOffAt > 10 * 60000L && extrasOn())
+                h.postDelayed(new Runnable() { public void run() { greet(false); } }, 7000);
             screenOffAt = 0;
         }
     };

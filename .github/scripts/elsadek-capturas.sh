@@ -21,6 +21,14 @@ adb shell am start -n $A --es prueba viaje-demo; shot 2-viaje 5
 adb shell am start -n $A --es prueba oracion; shot 3-oracion 5
 adb shell input keyevent KEYCODE_BACK
 adb shell am start -n $A --es prueba ajustes:1; shot 4-ajustes 6
+# asistente de voz: saludo y aviso de velocidad (el texto queda en el registro como ElsadekVoz)
+adb shell am start -n $A --es prueba saludo; sleep 8
+adb shell am start -n $A --es prueba velocidad; sleep 4
+adb shell am start -n $A --es prueba ajustes:1; sleep 3
+adb exec-out screencap -p > capturas/6-ajustes-voz-a.png
+adb shell input swipe 640 600 640 150 300; sleep 2
+adb exec-out screencap -p > capturas/6-ajustes-voz-b.png
+adb logcat -d | grep -E "ElsadekVoz|TextToSpeech|voz:" | tail -20 > capturas/voz.txt
 # viaje terminado → se sincroniza con Firebase (car_log_test en la versión de prueba)
 adb shell am start -n $A --es prueba viaje-cerrar; sleep 20
 DB=https://my-app-sync-11ad9-default-rtdb.europe-west1.firebasedatabase.app
