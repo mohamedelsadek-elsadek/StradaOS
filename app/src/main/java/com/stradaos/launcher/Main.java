@@ -4677,6 +4677,7 @@ public class Main extends Activity {
                 speedWarnAt = now;
                 Voice.init(this);
                 Voice.say("انتبه، السرعة " + Math.round(kmh) + ". هدّي شوية، الحد " + lim + ".");
+                android.util.Log.i("ElsadekVoz", "velocidad " + Math.round(kmh));
             }
         } else if (kmh < lim - 5) overCount = 0;
         if (prefs.getBoolean("fatigue_on", true) && Extras.tripMin(prefs) >= 120 && now - fatigueWarnAt > 60 * 60000L && kmh > 20) {

@@ -164,7 +164,9 @@ final class Voice {
         else if (m == 15) s = h + " وربع";
         else if (m == 30) s = h + " ونص";
         else if (m == 45) s = ((h % 12) + 1) + " إلا ربع";
-        else s = h + " و " + m + " دقيقة";
+        else if (m == 20) s = h + " وتلت";
+        else if (m == 40) s = ((h % 12) + 1) + " إلا تلت";
+        else s = h + " و" + durWords(m);
         return "الساعة " + s + " " + part;
     }
 
