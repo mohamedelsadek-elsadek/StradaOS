@@ -39,6 +39,7 @@ adb exec-out screencap -p > capturas/6-ajustes-voz-b.png
 # radio por internet: lista de Egipto, reproduce la primera y la ventana
 adb shell am start -n $A --es prueba radio-demo; sleep 30
 adb shell dumpsys media_session | grep -E "ElsadekRadio|state=PlaybackState" | head -6 > capturas/radio-sesion.txt
+adb shell am start -n $A --es prueba inicio; shot 7a-radio-inicio 4
 adb shell am start -n $A --es prueba radio; shot 7-radio 5
 adb shell input keyevent KEYCODE_BACK
 # temas: «Azul marino y oro» en el inicio y la galería en Ajustes → Apariencia

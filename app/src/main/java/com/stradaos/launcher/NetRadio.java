@@ -48,6 +48,7 @@ public class NetRadio extends Service {
     static volatile int state;            // 0 parado, 1 conectando, 2 sonando, 3 error
     static volatile String lastError = "";
     static Runnable onChange;              // lo pone Main para refrescar su ventana
+    static Runnable onHome;                // y el reproductor del inicio
 
     private static final String CH = "netradio";
     private MediaPlayer mp;
@@ -68,6 +69,11 @@ public class NetRadio extends Service {
         c.getSharedPreferences("launcher", 0).edit().putString("radio_last", s.json().toString()).apply();
         Intent i = new Intent(c, NetRadio.class).setAction("play");
         if (Build.VERSION.SDK_INT >= 26) c.startForegroundService(i); else c.startService(i);
+    }
+
+    /** Pausa: deja de sonar pero recuerda la emisora (▶ la vuelve a poner). */
+    static void pause(Context c) {
+        try { c.startService(new Intent(c, NetRadio.class).setAction("pause")); } catch (Throwable ignored) { }
     }
 
     static void stop(Context c) {
@@ -156,6 +162,7 @@ public class NetRadio extends Service {
     public int onStartCommand(Intent i, int flags, int id) {
         String a = i != null ? i.getAction() : null;
         if ("stop".equals(a)) { stopPlayback(); stopSelf(); return START_NOT_STICKY; }
+        if ("pause".equals(a)) { Station keep = current; stopPlayback(); current = keep; changed(); return START_NOT_STICKY; }
         if ("next".equals(a)) { step(this, 1); return START_NOT_STICKY; }
         if ("prev".equals(a)) { step(this, -1); return START_NOT_STICKY; }
         foreground();
@@ -221,6 +228,7 @@ public class NetRadio extends Service {
     private void changed() {
         h.post(new Runnable() { public void run() {
             try { if (onChange != null) onChange.run(); } catch (Throwable ignored) { }
+            try { if (onHome != null) onHome.run(); } catch (Throwable ignored) { }
             if (current != null) { foreground(); updateSession(); }
         }});
     }

@@ -1156,3 +1156,4 @@ Todavía no tienes favoritas: toca «Egipto» o busca, y toca ☆ para guardarla
 Cargando emisoras de radio-browser.info…	بيحمّل المحطات من radio-browser.info…
 %d emisoras	%d محطة
 No se pudo cargar la lista	مش قادر يحمّل القايمة
+En pausa	متوقفة مؤقتًا

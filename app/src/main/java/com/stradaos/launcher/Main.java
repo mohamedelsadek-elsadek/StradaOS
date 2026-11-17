@@ -204,6 +204,7 @@ public class Main extends Activity {
         }
         I18n.init(this, prefs);
         Updates.init(this);
+        NetRadio.onHome = new Runnable() { public void run() { try { renderTrack(); } catch (Throwable ignored) { } } };
         if (extrasOn()) {
             Voice.init(this);
             // la pantalla arrancó (carro encendido): saludo, si no hubo uno en los últimos 15 min
@@ -5039,6 +5040,12 @@ public class Main extends Activity {
             public void onClick(View v) {
                 int which = code == KeyEvent.KEYCODE_MEDIA_NEXT ? 1 : code == KeyEvent.KEYCODE_MEDIA_PREVIOUS ? -1 : 0;
                 boolean done = false;
+                if (NetRadio.current != null && curTitle == null || NetRadio.current != null && NetRadio.current.name.equals(curTitle)) {
+                    // radio por internet: ▶/⏸ la detiene o la vuelve a poner; ⏮⏭ cambian de favorita
+                    if (which == 0) { if (NetRadio.state == 2 || NetRadio.state == 1) NetRadio.pause(Main.this); else NetRadio.play(Main.this, NetRadio.current); }
+                    else NetRadio.step(Main.this, which);
+                    return;
+                }
 
                 if (mediaWatcher != null && "ms".equals(curOrigin)) {
                     try { done = mediaWatcher.command(which); } catch (Throwable ignored) { }
@@ -5412,6 +5419,19 @@ public class Main extends Activity {
 
     private void renderTrack() {
         if (trackTv == null) return;
+        // radio por internet de Elsadek Car: se muestra directo (no hace falta el acceso a notificaciones)
+        NetRadio.Station rs = NetRadio.current;
+        if (rs != null && (curTitle == null || "Radio por internet".equals(curArtist) || rs.name.equals(curTitle))) {
+            trackTv.setText(rs.name);
+            artistTv.setText(I18n.t(NetRadio.state == 1 ? "Conectando…" : NetRadio.state == 3 ? "No se pudo reproducir" : NetRadio.state == 0 ? "En pausa" : "Radio por internet"));
+            sourceTv.setText(I18n.t("Radio por internet").toUpperCase(I18n.loc));
+            timePosTv.setText("");
+            playerArt.setArt(null);
+            playerArt.setProgress(-1);
+            playingState = NetRadio.state == 2;
+            if (playIc != null) playIc.setImageBitmap(asset("ic/" + (NetRadio.state == 2 ? "pause" : "play_arrow") + ".png"));
+            return;
+        }
         if (curTitle == null && curArtist == null) {
             trackTv.setText(I18n.t("Nada sonando"));
             artistTv.setText(I18n.t("Radio, Bluetooth o USB"));
