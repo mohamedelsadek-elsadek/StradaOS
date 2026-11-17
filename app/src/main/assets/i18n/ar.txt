@@ -1085,3 +1085,27 @@ En 150 metros	بعد 150 مترًا
 En 500 pies	بعد 500 قدم
 En un cuarto de milla	بعد ربع ميل
 Parada intermedia	محطة على الطريق
+# Elsadek Car: horario de oración y resumen del viaje
+Fajr	الفجر
+Amanecer	الشروق
+Dhuhr	الظهر
+Asr	العصر
+Maghrib	المغرب
+Isha	العشاء
+Horario de oración	مواعيد الأذان
+%d min	%d د
+%d h %d min	%d س %d د
+en %s	بعد %s
+km	كم
+mi	ميل
+Sin viaje	مفيش رحلة
+Resumen del viaje	ملخص الرحلة
+Viaje actual	الرحلة الحالية
+Último viaje	آخر رحلة
+Todavía no hay viajes	لسه مفيش رحلات
+Calculado sin internet con tu ubicación (método egipcio)	محسوبة من غير إنترنت حسب موقعك (الهيئة المصرية العامة للمساحة)
+Aún sin ubicación GPS: calculado para El Cairo	لسه مفيش موقع GPS: المواعيد محسوبة على القاهرة
+Horario de oración y resumen del viaje	مواعيد الأذان وملخص الرحلة
+Arriba: el próximo adhan y lo recorrido en este viaje. Toca para ver el horario completo	فوق: الأذان الجاي والمسافة اللي مشيتها في الرحلة دي. اضغط عليهم تشوف كل المواعيد
+Colores	ألوان
+Apps: el ícono de la app que abre cada botón (radio, cámara…). Colores: un color por botón	Apps: أيقونة التطبيق اللي بيفتحه كل زرار (الراديو، الكاميرا…). ألوان: كل زرار بلون

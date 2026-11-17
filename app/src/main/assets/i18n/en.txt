@@ -1108,3 +1108,18 @@ Tráfico detenido	Stopped traffic
 Incidente en la vía	Road incident
 Radar de velocidad adelante	Speed camera ahead
 
+# Elsadek Car: prayer times and trip summary
+Amanecer	Sunrise
+Horario de oración	Prayer times
+en %s	in %s
+Sin viaje	No trip
+Resumen del viaje	Trip summary
+Viaje actual	Current trip
+Último viaje	Last trip
+Todavía no hay viajes	No trips yet
+Calculado sin internet con tu ubicación (método egipcio)	Calculated offline for your location (Egyptian method)
+Aún sin ubicación GPS: calculado para El Cairo	No GPS location yet: calculated for Cairo
+Horario de oración y resumen del viaje	Prayer times and trip summary
+Arriba: el próximo adhan y lo recorrido en este viaje. Toca para ver el horario completo	Top bar: the next prayer and this trip's distance. Tap for the full times
+Colores	Colors
+Apps: el ícono de la app que abre cada botón (radio, cámara…). Colores: un color por botón	Apps: the icon of the app each button opens (radio, camera…). Colors: one color per button

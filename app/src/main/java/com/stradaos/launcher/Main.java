@@ -188,6 +188,13 @@ public class Main extends Activity {
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().setBackgroundDrawable(new ColorDrawable(BG));
         prefs = getSharedPreferences("launcher", MODE_PRIVATE);
+        // Elsadek Car: la primera vez arranca con la barra de colores y el velocímetro grande (todo se cambia en Ajustes)
+        if (getResources().getBoolean(R.bool.extras_on) && !prefs.getBoolean("elsadek_init", false)) {
+            SharedPreferences.Editor e = prefs.edit().putBoolean("elsadek_init", true);
+            if (!prefs.contains("dock_style")) e.putString("dock_style", "color");
+            if (!prefs.contains("speedo")) e.putInt("speedo", 2);
+            e.apply();
+        }
         I18n.init(this, prefs);
         LiveMapView.headingUp = prefs.getBoolean("map_heading", false);
         lm = (LocationManager) getSystemService(LOCATION_SERVICE);
@@ -657,7 +664,13 @@ public class Main extends Activity {
             try {
                 if (settingsView != null) closeSettings();
                 closeDrawer();
-                if (v.startsWith("ajustes:")) showSettings(Integer.parseInt(v.substring(8)));
+                if ("viaje-demo".equals(v)) {   // Elsadek Car: viaje de ejemplo para las capturas
+                    prefs.edit().putFloat("trip_m", 8800f).putLong("trip_s", 600).putLong("trip_t", System.currentTimeMillis())
+                        .putFloat("last_trip_m", 32400f).putLong("last_trip_s", 2700).apply();
+                    updateExtras();
+                }
+                else if ("oracion".equals(v)) showPrayerTrip();
+                else if (v.startsWith("ajustes:")) showSettings(Integer.parseInt(v.substring(8)));
                 else if (v.startsWith("boton:")) dockMenu(Integer.parseInt(v.substring(6)), null);
                 else if (v.startsWith("elegir:")) pickDock(Integer.parseInt(v.substring(7)), null);
                 else if ("cajon".equals(v)) openDrawer();
@@ -1320,6 +1333,13 @@ public class Main extends Activity {
             row.addView(topOilTv, olp);
             topOilTv.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { badgeMenu(); } });
         }
+        tripTv = null;
+        if (extrasOn() && !vertical) {
+            tripTv = topPill("location_on");
+            LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(-2, -2);
+            tlp.leftMargin = (int) (14 * s);
+            row.addView(tripTv, tlp);
+        }
         LinearLayout pill = new LinearLayout(this);
         pill.setGravity(Gravity.CENTER_VERTICAL);
         pill.setBackground(round(CIRCLE, 14));
@@ -1380,12 +1400,19 @@ public class Main extends Activity {
                 } });
             right.addView(st);
         }
+        prayerTv = null;
+        if (extrasOn()) {
+            prayerTv = topPill("nights_stay");
+            LinearLayout.LayoutParams qlp = new LinearLayout.LayoutParams(-2, -2);
+            qlp.rightMargin = (int) (12 * s);
+            right.addView(prayerTv, qlp);
+        }
         right.addView(weatherBox);
         greetTv = tv("", 15, SOFT, false);
         greetTv.setPadding((int) (14 * s), 0, 0, 0);
         right.addView(greetTv);
         // sin la tarjeta del vehículo, la velocidad y el aceite ocupan la barra de arriba: el saludo se oculta
-        if (!showCar || vertical) greetTv.setVisibility(View.GONE);
+        if (!showCar || vertical || prayerTv != null) greetTv.setVisibility(View.GONE);
         place(board, right, ox + 400 + ex - (noDock ? 50 : 0), 14, 552, 32);
         if (noDock) {
             View appsBtn = circleIcon("apps", 40, 22, CIRCLE);
@@ -1671,6 +1698,7 @@ public class Main extends Activity {
     /** Distancia medida por el GPS (también con StradaOS detrás de otras apps). */
     private final LocationListener odoListener = new LocationListener() {
         public void onLocationChanged(Location l) {
+            if (extrasOn()) try { Extras.tripStep(prefs, l); } catch (Throwable ignored) { }
             try { odoStep(l); } catch (Throwable ignored) { }
         }
         public void onStatusChanged(String p, int st, Bundle e) { }
@@ -2073,7 +2101,7 @@ public class Main extends Activity {
 
     /** El odómetro estimado se necesita para el aceite o para alguna tarea por kilómetros. */
     private boolean odoNeeded() {
-        if (oilOn()) return true;
+        if (oilOn() || extrasOn()) return true;
         for (org.json.JSONObject o : maint()) if (o.optDouble("km", 0) > 0) return true;
         return false;
     }
@@ -3498,6 +3526,7 @@ public class Main extends Activity {
         if (sideDock) cs0 = Math.min(cs0, step - (dockLabels ? 18 : 6));          // que quepan en la barra lateral
         final float lblSize = sideDock ? 10 : compactDock ? 12 : 13, lblPad = sideDock ? 2 : compactDock ? 2 : 8;
         final boolean appStyle = "apps".equals(prefs.getString("dock_style", "circle"));
+        final boolean colorStyle = "color".equals(prefs.getString("dock_style", "circle"));
         // botones a lo ancho: con 7 se usan las posiciones de siempre; con otra cantidad se reparten parejo
         final float slotW = n == 7 && !vertical ? 138 + ex / 6 : (948 + ex) / (float) n, itemW = Math.min(120, slotW - 4);
         final float x0 = n == 7 && !vertical ? 38 : 38 + (slotW - itemW) / 2;
@@ -3519,7 +3548,7 @@ public class Main extends Activity {
                 FrameLayout f = new FrameLayout(this);
                 GradientDrawable g = new GradientDrawable();
                 g.setShape(GradientDrawable.OVAL);
-                g.setColor(CIRCLE);
+                g.setColor(colorStyle ? DOCK_COLORS[i % DOCK_COLORS.length] : CIRCLE);
                 f.setBackground(g);
                 ImageView iv = new ImageView(this);
                 iv.setImageDrawable(appIc);
@@ -3530,7 +3559,8 @@ public class Main extends Activity {
                 b.addView(f, new LinearLayout.LayoutParams((int) (cs * s), (int) (cs * s)));
             } else {
                 String id = t.startsWith("fn:") ? t.substring(3) : dockDefault(i);
-                b.addView(circleIcon(dockFn(id)[2], cs, cs * 0.44f, CIRCLE), new LinearLayout.LayoutParams((int) (cs * s), (int) (cs * s)));
+                b.addView(circleIcon(dockFn(id)[2], cs, cs * 0.44f, colorStyle ? DOCK_COLORS[i % DOCK_COLORS.length] : CIRCLE),
+                    new LinearLayout.LayoutParams((int) (cs * s), (int) (cs * s)));
             }
             if (dockLabels) {
                 TextView l = tv(dockName(i), lblSize, SOFT, false);
@@ -4475,6 +4505,10 @@ public class Main extends Activity {
         return v;
     }
 
+    /** Barra «Colores» (Elsadek Car): un color por botón, íconos blancos. */
+    static final int[] DOCK_COLORS = {0xFF3FA34D, 0xFF8E44AD, 0xFFE8572A, 0xFF1FA2B8, 0xFF2D7FF9, 0xFF7CB342, 0xFF1E88E5,
+        0xFFF2A61D, 0xFFD81B60, 0xFF5C6BC0};
+
     private FrameLayout circleIcon(String name, float d, float ic, int color) {
         FrameLayout f = new FrameLayout(this);
         GradientDrawable g = new GradientDrawable();
@@ -4485,6 +4519,7 @@ public class Main extends Activity {
         lp.gravity = Gravity.CENTER;
         ImageView iv = icon(name, ic);
         if (color == RED) iv.clearColorFilter();
+        else for (int c : DOCK_COLORS) if (c == color) { iv.clearColorFilter(); break; }
         f.addView(iv, lp);
         return f;
     }
@@ -4522,6 +4557,127 @@ public class Main extends Activity {
         String saludo = I18n.t(hr >= 5 && hr < 12 ? "Buenos días" : (hr >= 12 && hr < 19 ? "Buenas tardes" : "Buenas noches"));
         String nombre = prefs.getString("user_name", "").trim();
         greetTv.setText(nombre.length() > 0 ? saludo + ", " + nombre : saludo);
+        updateExtras();
+    }
+
+    // ───────────────────────── Elsadek Car: horario de oración y resumen del viaje ─────────────────────────
+
+    private TextView prayerTv, tripTv;
+
+    /** Horario de oración y viaje: encendidos por defecto en Elsadek Car (R.bool.extras_on), apagados en StradaOS. */
+    private boolean extrasOn() {
+        return prefs.getBoolean("extras_on", getResources().getBoolean(R.bool.extras_on));
+    }
+
+    private TextView topPill(String ic) {
+        TextView t = tv("", 13, TEXT, true);
+        t.setBackground(round(CIRCLE, 12));
+        t.setPadding((int) (10 * s), (int) (4 * s), (int) (12 * s), (int) (4 * s));
+        android.graphics.drawable.BitmapDrawable di = new android.graphics.drawable.BitmapDrawable(getResources(), asset("ic/" + ic + ".png"));
+        di.setBounds(0, 0, (int) (14 * s), (int) (14 * s));
+        di.setColorFilter(RED, android.graphics.PorterDuff.Mode.SRC_IN);
+        t.setCompoundDrawables(di, null, null, null);
+        t.setCompoundDrawablePadding((int) (6 * s));
+        t.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { showPrayerTrip(); } });
+        return t;
+    }
+
+    private double[] prayerSpot() {
+        float la = prefs.getFloat("sun_lat", Float.NaN), lo = prefs.getFloat("sun_lon", Float.NaN);
+        if (Float.isNaN(la) || Float.isNaN(lo)) return new double[]{Extras.CAIRO_LAT, Extras.CAIRO_LON, 0};
+        return new double[]{la, lo, 1};
+    }
+
+    private String clockText(int minOfDay) {
+        Calendar c = Calendar.getInstance();
+        c.set(Calendar.HOUR_OF_DAY, minOfDay / 60);
+        c.set(Calendar.MINUTE, minOfDay % 60);
+        String fmt = prefs.getString("clock", "auto");
+        boolean h24 = "24".equals(fmt) || ("auto".equals(fmt) && android.text.format.DateFormat.is24HourFormat(this));
+        return I18n.sdf(h24 ? "HH:mm" : "h:mm a").format(c.getTime());
+    }
+
+    private String durText(long min) {
+        if (min < 60) return I18n.f("%d min", (int) min);
+        return I18n.f("%d h %d min", (int) (min / 60), (int) (min % 60));
+    }
+
+    private String tripText(float km, long min) {
+        return String.format(I18n.num, "%.1f", toUnit(km)) + " " + I18n.t(unit()) + " · " + durText(min);
+    }
+
+    private void updateExtras() {
+        if (prayerTv == null && tripTv == null) return;
+        try {
+            Extras.tripRollover(prefs, System.currentTimeMillis());
+            if (prayerTv != null) {
+                double[] sp = prayerSpot();
+                int[] n = Extras.nextPrayer(sp[0], sp[1], Calendar.getInstance());
+                prayerTv.setText(I18n.t(Extras.PRAYER[n[0]]) + " " + clockText(n[2])
+                    + (vertical ? "" : " · " + I18n.f("en %s", durText(n[1]))));
+            }
+            if (tripTv != null) {
+                float km = Extras.tripKm(prefs);
+                tripTv.setText(km < 0.05f ? I18n.t("Sin viaje") : tripText(km, Extras.tripMin(prefs)));
+            }
+        } catch (Throwable e) { Guard.log("extras: " + e); }
+    }
+
+    /** Ventana con el horario de oración de hoy y el resumen del viaje. */
+    private void showPrayerTrip() {
+        LinearLayout v = new LinearLayout(this);
+        v.setOrientation(LinearLayout.VERTICAL);
+        v.setPadding((int) (20 * s), (int) (6 * s), (int) (20 * s), (int) (6 * s));
+        double[] sp = prayerSpot();
+        Calendar now = Calendar.getInstance();
+        int[] t = Extras.prayerTimes(sp[0], sp[1], now);
+        int[] n = Extras.nextPrayer(sp[0], sp[1], now);
+        int cur = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE);
+        for (int i = 0; i < 6; i++) {
+            boolean next = i == n[0] && n[2] == t[i] && t[i] > cur;
+            LinearLayout r = new LinearLayout(this);
+            r.setGravity(Gravity.CENTER_VERTICAL);
+            r.setPadding((int) (14 * s), (int) (8 * s), (int) (14 * s), (int) (8 * s));
+            if (next) r.setBackground(round(RED, 10));
+            int col = next ? Color.WHITE : (i == 1 ? MUTED : TEXT);
+            TextView a = tv(Extras.PRAYER[i], 17, col, true);
+            r.addView(a, new LinearLayout.LayoutParams(0, -2, 1));
+            TextView b = tv(t[i] < 0 ? "--" : clockText(t[i]), 17, col, true);
+            r.addView(b);
+            LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-1, -2);
+            rlp.bottomMargin = (int) (4 * s);
+            v.addView(r, rlp);
+        }
+        TextView note = tv(sp[2] > 0 ? "Calculado sin internet con tu ubicación (método egipcio)"
+            : "Aún sin ubicación GPS: calculado para El Cairo", 12, MUTED, false);
+        note.setSingleLine(false);
+        note.setPadding(0, (int) (6 * s), 0, (int) (14 * s));
+        v.addView(note);
+
+        TextView th = tv("Resumen del viaje", 17, TEXT, true);
+        th.setPadding(0, (int) (4 * s), 0, (int) (8 * s));
+        v.addView(th);
+        float km = Extras.tripKm(prefs);
+        v.addView(extrasRow("Viaje actual", km < 0.05f ? I18n.t("Sin viaje") : tripText(km, Extras.tripMin(prefs))));
+        float lkm = prefs.getFloat("last_trip_m", 0) / 1000f;
+        v.addView(extrasRow("Último viaje", lkm <= 0 ? I18n.t("Todavía no hay viajes") : tripText(lkm, prefs.getLong("last_trip_s", 0) / 60)));
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(v);
+        new TB(this, dlg()).setTitle("Horario de oración").setView(sv)
+            .setPositiveButton("Cerrar", null).show();
+    }
+
+    private View extrasRow(String label, String value) {
+        LinearLayout r = new LinearLayout(this);
+        r.setGravity(Gravity.CENTER_VERTICAL);
+        r.setPadding((int) (14 * s), (int) (8 * s), (int) (14 * s), (int) (8 * s));
+        r.setBackground(round(INNER, 10));
+        r.addView(tv(label, 15, SOFT, false), new LinearLayout.LayoutParams(0, -2, 1));
+        r.addView(tv(value, 15, TEXT, true));
+        LinearLayout box = new LinearLayout(this);
+        box.setPadding(0, 0, 0, (int) (6 * s));
+        box.addView(r, new LinearLayout.LayoutParams(-1, -2));
+        return box;
     }
 
     private final LocationListener gpsListener = new LocationListener() {
@@ -6260,9 +6416,10 @@ public class Main extends Activity {
             prefs.edit().putInt("font_size", i).apply(); rebuild(); showSettings(settingsCat);
         }});
         LinearLayout ic = section(body, "Íconos");
-        boolean appStyle = "apps".equals(prefs.getString("dock_style", "circle"));
-        segmented(ic, "Íconos de la barra", "Apps: el ícono de la app que abre cada botón (radio, cámara…)", new String[]{"StradaOS", "Apps"}, appStyle ? 1 : 0, new IntCb() { public void on(int i) {
-            prefs.edit().putString("dock_style", i == 1 ? "apps" : "circle").apply(); rebuild(); showSettings(settingsCat);
+        String dstyle = prefs.getString("dock_style", "circle");
+        segmented(ic, "Íconos de la barra", "Apps: el ícono de la app que abre cada botón (radio, cámara…). Colores: un color por botón",
+                new String[]{"StradaOS", "Apps", "Colores"}, "apps".equals(dstyle) ? 1 : "color".equals(dstyle) ? 2 : 0, new IntCb() { public void on(int i) {
+            prefs.edit().putString("dock_style", i == 1 ? "apps" : i == 2 ? "color" : "circle").apply(); rebuild(); showSettings(settingsCat);
         }});
         final List<String[]> packs = IconPack.installed(this);
         String curPack = prefs.getString("icon_pack", "");
@@ -6367,6 +6524,10 @@ public class Main extends Activity {
             }
         }
         LinearLayout top = section(body, "Barra de arriba");
+        toggle(top, "Horario de oración y resumen del viaje", "Arriba: el próximo adhan y lo recorrido en este viaje. Toca para ver el horario completo",
+            extrasOn(), new IntCb() { public void on(int i) {
+                prefs.edit().putBoolean("extras_on", i == 1).apply(); startOdo(); rebuild();
+            }});
         toggle(top, "Íconos de Wi-Fi y Bluetooth", "Arriba, junto al clima. Toca para encender o apagar; déjalo presionado para abrir sus ajustes",
             prefs.getBoolean("status_icons", true), new IntCb() { public void on(int i) {
                 prefs.edit().putBoolean("status_icons", i == 1).apply(); rebuild();

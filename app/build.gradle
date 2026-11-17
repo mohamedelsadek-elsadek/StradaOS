@@ -28,6 +28,8 @@ android {
         // idioma de una instalación nueva: «auto» = el del sistema
         resValue 'string', 'default_lang', elsadek ? 'ar' : 'auto'
         resValue 'bool', 'updates_on', elsadek ? 'false' : 'true'
+        // horario de oración y resumen del viaje en la barra de arriba (Ajustes los puede apagar/encender)
+        resValue 'bool', 'extras_on', elsadek ? 'true' : 'false'
     }
 
     signingConfigs {
@@ -57,6 +59,14 @@ android {
             versionNameSuffix '-prueba'
             manifestPlaceholders = [appLabel: brandName + ' Prueba']
             if (ksPath) signingConfig signingConfigs.release
+        }
+    }
+
+    // Elsadek Car: ícono y logo propios (src/elsadek). Van en los source sets de release/debug, que pisan a main.
+    if (elsadek) {
+        sourceSets {
+            release { res.srcDirs += 'src/elsadek/res'; assets.srcDirs += 'src/elsadek/assets' }
+            debug { res.srcDirs += 'src/elsadek/res'; assets.srcDirs += 'src/elsadek/assets' }
         }
     }
 
