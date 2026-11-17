@@ -198,6 +198,7 @@ public class Main extends Activity {
             e.apply();
         }
         I18n.init(this, prefs);
+        Updates.init(this);
         LiveMapView.headingUp = prefs.getBoolean("map_heading", false);
         lm = (LocationManager) getSystemService(LOCATION_SERVICE);
         if (getPackageName().endsWith(".debug") && getIntent() != null && "saltar".equals(getIntent().getStringExtra("prueba")))
@@ -672,6 +673,11 @@ public class Main extends Activity {
                     updateExtras();
                 }
                 else if ("oracion".equals(v)) showPrayerTrip();
+                else if ("viaje-cerrar".equals(v)) {   // termina el viaje de ejemplo y lo sincroniza (en car_log_test)
+                    prefs.edit().putLong("trip_t", System.currentTimeMillis() - Extras.TRIP_GAP - 1000)
+                        .putLong("trip_start", System.currentTimeMillis() - Extras.TRIP_GAP - 601000).apply();
+                    updateExtras();
+                }
                 else if (v.startsWith("ajustes:")) showSettings(Integer.parseInt(v.substring(8)));
                 else if (v.startsWith("boton:")) dockMenu(Integer.parseInt(v.substring(6)), null);
                 else if (v.startsWith("elegir:")) pickDock(Integer.parseInt(v.substring(7)), null);
@@ -4612,6 +4618,7 @@ public class Main extends Activity {
         if (prayerTv == null && tripTv == null) return;
         try {
             Extras.tripRollover(prefs, System.currentTimeMillis());
+            if (extrasOn()) Extras.sync(this, prefs, getString(R.string.sync_db));
             if (prayerTv != null) {
                 double[] sp = prayerSpot();
                 int[] n = Extras.nextPrayer(sp[0], sp[1], Calendar.getInstance());

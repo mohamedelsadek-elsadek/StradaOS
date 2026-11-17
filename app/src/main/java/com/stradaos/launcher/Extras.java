@@ -132,6 +132,9 @@ final class Extras {
 
     private static void tripFlush(SharedPreferences p, long now) {
         if (pendM == 0 && pendS == 0) return;
+        SharedPreferences.Editor e0 = p.edit();
+        if (p.getLong("trip_start", 0) == 0) e0.putLong("trip_start", now - pendS * 1000);
+        e0.apply();
         p.edit().putFloat("trip_m", p.getFloat("trip_m", 0) + pendM)
             .putLong("trip_s", p.getLong("trip_s", 0) + pendS)
             .putLong("trip_t", now).apply();
@@ -143,10 +146,98 @@ final class Extras {
         long last = p.getLong("trip_t", 0);
         if (last == 0 || now - last < TRIP_GAP || pendM > 0) return;
         float m = p.getFloat("trip_m", 0);
-        SharedPreferences.Editor e = p.edit().putFloat("trip_m", 0).putLong("trip_s", 0).putLong("trip_t", 0);
-        if (m >= 300) e.putFloat("last_trip_m", m).putLong("last_trip_s", p.getLong("trip_s", 0)).putLong("last_trip_end", last);
+        long secs = p.getLong("trip_s", 0), start = p.getLong("trip_start", 0);
+        SharedPreferences.Editor e = p.edit().putFloat("trip_m", 0).putLong("trip_s", 0).putLong("trip_t", 0).putLong("trip_start", 0);
+        if (m >= 300) {
+            e.putFloat("last_trip_m", m).putLong("last_trip_s", secs).putLong("last_trip_end", last);
+            try {
+                org.json.JSONObject d = new org.json.JSONObject();
+                d.put("id", newId()).put("t", "trip").put("date", day(start > 0 ? start : last))
+                    .put("start", start > 0 ? start : last - secs * 1000).put("end", last)
+                    .put("km", Math.round(m / 10f) / 100.0).put("min", Math.round(secs / 60f))
+                    .put("odo", Math.round(p.getFloat("odo_base_km", 0) + p.getFloat("odo_gps_m", 0) / 1000f))
+                    .put("by", "car").put("u", now);
+                e.putString("trip_log", append(p.getString("trip_log", "[]"), d, 1000));
+                e.putString("sync_q", append(p.getString("sync_q", "[]"), d, 2000));
+            } catch (Throwable ignored) { }
+        }
         e.apply();
         tripPrev = null;
+    }
+
+    static String newId() {
+        return "x" + Long.toString(System.currentTimeMillis(), 36) + Long.toString((long) (Math.random() * 2176782336L), 36);
+    }
+
+    static String day(long ms) {
+        return new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(new java.util.Date(ms));
+    }
+
+    private static String append(String json, org.json.JSONObject d, int max) throws org.json.JSONException {
+        org.json.JSONArray a = new org.json.JSONArray(json), out = new org.json.JSONArray();
+        int from = Math.max(0, a.length() + 1 - max);
+        for (int i = from; i < a.length(); i++) out.put(a.get(i));
+        out.put(d);
+        return out.toString();
+    }
+
+    // ───────────────────────── sincronización (Firebase de los programas de Mohamed) ─────────────────────────
+    // Cada viaje terminado va a <db>/car_log/docs/<id> (como los demás programas: {id,t,u,...}) y el estado del carro
+    // (kilometraje, viaje en curso) a <db>/car_log/state. Sin ubicación: la base no tiene contraseña.
+
+    private static volatile boolean syncing;
+
+    static void sync(final android.content.Context c, final SharedPreferences p, final String db) {
+        if (db == null || db.length() == 0 || syncing) return;
+        long now = System.currentTimeMillis();
+        boolean queued = !"[]".equals(p.getString("sync_q", "[]"));
+        if (!queued && now - p.getLong("sync_state_at", 0) < 10 * 60 * 1000L) return;
+        syncing = true;
+        // la versión de prueba escribe aparte, para no mezclar viajes de prueba con los del carro
+        final String root = db + (c.getPackageName().endsWith(".debug") ? "/car_log_test" : "/car_log");
+        new Thread(new Runnable() { public void run() {
+            try {
+                org.json.JSONArray q = new org.json.JSONArray(p.getString("sync_q", "[]"));
+                int sent = 0;
+                for (int i = 0; i < q.length(); i++) {
+                    org.json.JSONObject d = q.getJSONObject(i);
+                    put(root + "/docs/" + d.getString("id") + ".json", d.toString());
+                    sent++;
+                }
+                if (sent > 0) {   // se quitan solo los enviados (pudo llegar otro viaje mientras tanto)
+                    org.json.JSONArray cur = new org.json.JSONArray(p.getString("sync_q", "[]")), rest = new org.json.JSONArray();
+                    for (int i = sent; i < cur.length(); i++) rest.put(cur.get(i));
+                    p.edit().putString("sync_q", rest.toString()).apply();
+                }
+                org.json.JSONObject st = new org.json.JSONObject();
+                long t = System.currentTimeMillis();
+                st.put("odo", Math.round(p.getFloat("odo_base_km", 0) + p.getFloat("odo_gps_m", 0) / 1000f))
+                    .put("trip_km", Math.round(tripKm(p) * 100) / 100.0).put("trip_min", tripMin(p))
+                    .put("car", p.getString("car_name", "")).put("ver", Updates.currentVersion(c)).put("u", t);
+                put(root + "/state.json", st.toString());
+                p.edit().putLong("sync_state_at", t).putLong("sync_ok_at", t).apply();
+            } catch (Throwable e) {
+                Guard.log("sync: " + e);
+            } finally {
+                syncing = false;
+            }
+        }}).start();
+    }
+
+    private static void put(String url, String body) throws Exception {
+        java.net.HttpURLConnection h = Net.open(url, 15000);
+        try {
+            h.setRequestMethod("PUT");
+            h.setDoOutput(true);
+            h.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+            java.io.OutputStream o = h.getOutputStream();
+            o.write(body.getBytes("UTF-8"));
+            o.close();
+            int code = h.getResponseCode();
+            if (code < 200 || code >= 300) throw new Exception("HTTP " + code);
+        } finally {
+            h.disconnect();
+        }
     }
 
     static float tripKm(SharedPreferences p) { return (p.getFloat("trip_m", 0) + pendM) / 1000f; }

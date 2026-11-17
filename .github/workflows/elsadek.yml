@@ -21,36 +21,38 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
-      - name: Llave de firma (si está en los secretos del repositorio)
+      - name: Llave de Elsadek Car (app/keys/elsadek.jks.enc, se abre con el secreto ELSADEK_KEY_PASS)
         env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          ELSADEK_KEY_PASS: ${{ secrets.ELSADEK_KEY_PASS }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
-            echo "STRADAOS_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          if [ -n "$ELSADEK_KEY_PASS" ]; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in app/keys/elsadek.jks.enc -out "$RUNNER_TEMP/elsadek.jks" -pass env:ELSADEK_KEY_PASS
+            { echo "STRADAOS_KEYSTORE=$RUNNER_TEMP/elsadek.jks"; echo "STRADAOS_KEYSTORE_PASSWORD=$ELSADEK_KEY_PASS";
+              echo "STRADAOS_KEY_ALIAS=elsadek"; echo "STRADAOS_KEY_PASSWORD=$ELSADEK_KEY_PASS"; } >> "$GITHUB_ENV"
+            echo "::add-mask::$ELSADEK_KEY_PASS"
+          else
+            echo "::warning::Sin ELSADEK_KEY_PASS: el APK sale con una llave temporal y no se podrá actualizar encima"
           fi
       - name: Compilar Elsadek Car
-        env:
-          STRADAOS_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          STRADAOS_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          STRADAOS_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew --no-daemon assembleRelease -Pelsadek
+        run: ./gradlew --no-daemon assembleRelease -Pelsadek -PbuildNum=${{ github.run_number }}
       - uses: actions/upload-artifact@v4
         with:
           name: ElsadekCar
           path: app/build/outputs/apk/release/*.apk
       - name: Publicar en el Release «elsadek-car»
+        if: env.STRADAOS_KEYSTORE != '' || github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp app/build/outputs/apk/release/*.apk ElsadekCar.apk
           SHORT=$(git rev-parse --short HEAD)
+          VER="2.23.0.${{ github.run_number }}"
           NOTES=$(printf 'Elsadek Car — لانشر شاشة العربية (مبني على StradaOS، رخصة GPL-3.0).\n\nCommit %s\n\nEnlace fijo:\nhttps://github.com/%s/releases/download/elsadek-car/ElsadekCar.apk' "$SHORT" "$GITHUB_REPOSITORY")
           git tag -f elsadek-car
           git push -f origin refs/tags/elsadek-car
           if gh release view elsadek-car >/dev/null 2>&1; then
             gh release upload elsadek-car ElsadekCar.apk --clobber
-            gh release edit elsadek-car --title "Elsadek Car · $SHORT" --notes "$NOTES" --prerelease --latest=false
+            gh release edit elsadek-car --title "Elsadek Car $VER"  --notes "$NOTES" --prerelease --latest=false
           else
-            gh release create elsadek-car ElsadekCar.apk --title "Elsadek Car · $SHORT" --notes "$NOTES" --prerelease --latest=false
+            gh release create elsadek-car ElsadekCar.apk --title "Elsadek Car $VER" --notes "$NOTES" --prerelease --latest=false
           fi

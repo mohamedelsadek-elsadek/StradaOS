@@ -15,14 +15,34 @@ import org.json.JSONObject;
  */
 public class Updates {
 
-    public static final String OWNER = "lordnordic-debug";
-    public static final String REPO = "StradaOS";
-    public static final String REPO_URL = "https://github.com/" + OWNER + "/" + REPO;
-    public static final String RELEASES_URL = REPO_URL + "/releases/latest";
-    public static final String ISSUES_URL = REPO_URL + "/issues";
-    public static final String DONATE_DEFAULT = REPO_URL + "#-apoya-el-proyecto";
+    public static String OWNER = "lordnordic-debug";
+    public static String REPO = "StradaOS";
+    public static String REPO_URL = "https://github.com/" + OWNER + "/" + REPO;
+    public static String RELEASES_URL = REPO_URL + "/releases/latest";
+    public static final String ISSUES_URL = "https://github.com/lordnordic-debug/StradaOS/issues";
+    public static final String DONATE_DEFAULT = "https://github.com/lordnordic-debug/StradaOS#-apoya-el-proyecto";
     /** Único lugar del que se descarga el APK (los Releases del repositorio). */
-    static final String APK_PREFIX = REPO_URL + "/releases/download/v";
+    static String APK_PREFIX = REPO_URL + "/releases/download/v";
+    /**
+     * Ediciones (Elsadek Car): un solo Release con etiqueta fija (R.string.upd_tag) que se reemplaza en cada
+     * compilación; la versión va en el título del Release («Elsadek Car 2.23.0.15») y el APK se llama R.string.upd_apk.
+     */
+    static String TAG = "", APK_NAME = "";
+
+    /** Lee de los recursos el repositorio y la etiqueta de la edición (vacío = StradaOS de siempre). */
+    static void init(Context c) {
+        try {
+            String repo = c.getString(R.string.upd_repo), tag = c.getString(R.string.upd_tag);
+            if (tag.length() == 0 || !repo.contains("/")) return;
+            OWNER = repo.substring(0, repo.indexOf('/'));
+            REPO = repo.substring(repo.indexOf('/') + 1);
+            REPO_URL = "https://github.com/" + OWNER + "/" + REPO;
+            RELEASES_URL = REPO_URL + "/releases/tag/" + tag;
+            TAG = tag;
+            APK_NAME = c.getString(R.string.upd_apk);
+            APK_PREFIX = REPO_URL + "/releases/download/" + tag + "/";
+        } catch (Throwable ignored) { }
+    }
 
     static final String[] JSON_URLS = {
         "https://raw.githubusercontent.com/" + OWNER + "/" + REPO + "/main/update.json",
@@ -96,6 +116,15 @@ public class Updates {
                 // puede estar atrasada horas, y en Android 4.x algunas fuentes fallan por el cifrado.
                 Release r = null;
                 StringBuilder rep = new StringBuilder();
+                if (TAG.length() > 0) {   // edición: solo el Release de etiqueta fija
+                    Release t = null;
+                    try { t = fromTag(); } catch (Throwable e) { lastError = "GitHub: " + e; }
+                    lastReport = t == null ? "GitHub: " + shortErr(new Exception(lastError)) : "GitHub: " + t.version;
+                    if (t == null) { l.onResult(null, lastError); return; }
+                    ctx.getSharedPreferences("launcher", 0).edit().putLong("upd_last", System.currentTimeMillis()).putString("upd_latest", t.version).apply();
+                    l.onResult(compare(t.version, currentVersion(ctx)) > 0 ? t : null, null);
+                    return;
+                }
                 String[] names = {"GitHub", "GitHub (raw)", "jsDelivr", "jsDelivr (http)"};
                 boolean secureOk = false;
                 for (int i = 0; i <= JSON_URLS.length; i++) {
@@ -118,6 +147,18 @@ public class Updates {
                 l.onResult(compare(r.version, currentVersion(ctx)) > 0 ? r : null, null);
             }
         }).start();
+    }
+
+    private static Release fromTag() throws Exception {
+        JSONObject o = new JSONObject(new String(Net.get("https://api.github.com/repos/" + OWNER + "/" + REPO + "/releases/tags/" + TAG, 10000), "UTF-8"));
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d{1,4}(\\.\\d{1,4}){1,3})").matcher(o.optString("name", ""));
+        if (!m.find()) throw new Exception("versión no válida");
+        Release r = new Release();
+        r.version = safeVersion(m.group(1));
+        r.notes = o.optString("body", "");
+        r.pageUrl = RELEASES_URL;
+        r.apkUrl = APK_PREFIX + APK_NAME;
+        return r;
     }
 
     private static Release fromApi() throws Exception {

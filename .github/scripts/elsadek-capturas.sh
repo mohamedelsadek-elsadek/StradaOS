@@ -21,6 +21,11 @@ adb shell am start -n $A --es prueba viaje-demo; shot 2-viaje 5
 adb shell am start -n $A --es prueba oracion; shot 3-oracion 5
 adb shell input keyevent KEYCODE_BACK
 adb shell am start -n $A --es prueba ajustes:1; shot 4-ajustes 6
+# viaje terminado → se sincroniza con Firebase (car_log_test en la versión de prueba)
+adb shell am start -n $A --es prueba viaje-cerrar; sleep 20
+DB=https://my-app-sync-11ad9-default-rtdb.europe-west1.firebasedatabase.app
+curl -s "$DB/car_log_test.json" > capturas/firebase.json; cat capturas/firebase.json; echo
+curl -s -X DELETE "$DB/car_log_test.json" > /dev/null   # se borra la prueba
 adb shell am start -n $A --es prueba inicio; sleep 3
 adb shell wm size 720x1280; adb shell wm density 240
 adb shell am start -n $A --es prueba inicio; shot 5-vertical 10

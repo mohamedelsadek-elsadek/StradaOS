@@ -10,6 +10,9 @@ def ksPath = System.getenv('STRADAOS_KEYSTORE')
 // Otro paquete (se instala junto a StradaOS), otro nombre, árabe por defecto y sin aviso de versiones de StradaOS.
 def elsadek = project.hasProperty('elsadek')
 def brandName = elsadek ? 'Elsadek Car' : 'StradaOS'
+// número de compilación de Elsadek Car (GitHub Actions: run_number): sube la versión en cada compilación para que
+// el botón «Buscar actualizaciones» la detecte
+def buildNum = (project.findProperty('buildNum') ?: '0') as Integer
 
 android {
     namespace 'com.stradaos.launcher'
@@ -21,13 +24,19 @@ android {
         minSdk 16
         // 28 a propósito: mantiene el comportamiento probado en pantallas viejas y nuevas.
         targetSdk 28
-        versionCode 56
-        versionName '2.23.0'
+        versionCode elsadek ? 1000 + buildNum : 56
+        versionName elsadek ? "2.23.0.${buildNum}" : '2.23.0'
         manifestPlaceholders = [appLabel: brandName]
         resValue 'string', 'brand', brandName
         // idioma de una instalación nueva: «auto» = el del sistema
         resValue 'string', 'default_lang', elsadek ? 'ar' : 'auto'
-        resValue 'bool', 'updates_on', elsadek ? 'false' : 'true'
+        resValue 'bool', 'updates_on', 'true'
+        // de dónde se actualiza la edición (vacío = StradaOS de siempre, ver Updates.init)
+        resValue 'string', 'upd_repo', elsadek ? 'mohamedelsadek-elsadek/StradaOS' : ''
+        resValue 'string', 'upd_tag', elsadek ? 'elsadek-car' : ''
+        resValue 'string', 'upd_apk', elsadek ? 'ElsadekCar.apk' : ''
+        // sincronización de viajes con la base de datos de los programas de Mohamed (vacío = sin sincronizar)
+        resValue 'string', 'sync_db', elsadek ? 'https://my-app-sync-11ad9-default-rtdb.europe-west1.firebasedatabase.app' : ''
         // horario de oración y resumen del viaje en la barra de arriba (Ajustes los puede apagar/encender)
         resValue 'bool', 'extras_on', elsadek ? 'true' : 'false'
     }
