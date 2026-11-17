@@ -51,7 +51,9 @@ adb logcat -d | grep -E "ElsadekVoz|voz:" | tail -30 > capturas/voz.txt
 adb shell am start -n $A --es prueba viaje-cerrar; sleep 20
 DB=https://my-app-sync-11ad9-default-rtdb.europe-west1.firebasedatabase.app
 curl -s "$DB/car_log_test.json" > capturas/firebase.json; cat capturas/firebase.json; echo
-curl -s -X DELETE "$DB/car_log_test.json" > /dev/null   # se borra la prueba
+# se borra la prueba (las reglas no dejan vaciar una app entera: queda «probe» como ancla)
+curl -s -X DELETE "$DB/car_log_test/docs.json" > /dev/null
+curl -s -X DELETE "$DB/car_log_test/state.json" > /dev/null
 adb shell am start -n $A --es prueba inicio; sleep 3
 adb shell wm size 720x1280; adb shell wm density 240
 adb shell am start -n $A --es prueba inicio; shot 5-vertical 10
