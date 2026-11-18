@@ -62,15 +62,6 @@ adb shell am start -n $A --es prueba inicio; shot 11-odo-total 3
 adb shell am start -n $A --es prueba pref:odo_view=1; shot 11-odo-viaje 3
 adb shell am start -n $A --es prueba pref:odo_view=2; shot 11-odo-aceite 3
 adb shell am start -n $A --es prueba pref:odo_view=0; sleep 2
-# pantalla dividida: ventanas libres activadas, Ajustes a la izquierda (navegador) y Chrome a la derecha
-adb shell settings put global enable_freeform_support 1
-adb shell settings put global force_resizable_activities 1
-adb shell am start -n $A --es prueba inicio; sleep 3
-adb shell am start -n $A --es prueba dividir-demo; sleep 8
-adb exec-out screencap -p > capturas/12-dividida.png
-{ adb logcat -d | grep -E "ElsadekSplit" | tail -3; adb shell dumpsys activity activities | grep -E "mode=freeform|windowingMode=5|bounds=Rect" | head -12; } > capturas/dividida.txt
-adb shell am start -n $A --es prueba inicio; sleep 2
-adb shell settings put global enable_freeform_support 0
 # temas: «Azul marino y oro» en el inicio y la galería en Ajustes → Apariencia
 adb shell am start -n $A --es prueba pref:palette=1; shot 8-tema-inicio 6
 adb shell am start -n $A --es prueba ajustes:5; shot 9-temas 5
@@ -87,6 +78,15 @@ adb shell am start -n $A --es prueba inicio; sleep 3
 adb shell wm size 720x1280; adb shell wm density 240
 adb shell am start -n $A --es prueba inicio; shot 5-vertical 10
 adb shell wm size reset; adb shell wm density reset
+# pantalla dividida (al final: necesita reiniciar con las ventanas libres activadas)
+adb shell settings put global enable_freeform_support 1
+adb shell settings put global force_resizable_activities 1
+adb reboot; adb wait-for-device
+until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 3; done; sleep 20
+adb shell am start -n $A --es prueba inicio; sleep 6
+adb shell am start -n $A --es prueba dividir-demo; sleep 10
+adb exec-out screencap -p > capturas/12-dividida.png
+{ adb logcat -d | grep -E "ElsadekSplit" | tail -3; adb shell am stack list; } > capturas/dividida.txt 2>&1
 adb logcat -d | grep -E "FATAL|AndroidRuntime" | tail -60 > capturas/errores.txt
 adb shell dumpsys package $P | grep -E "versionName|firstInstall" > capturas/paquete.txt
 cat capturas/errores.txt
