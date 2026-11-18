@@ -86,6 +86,10 @@ until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep
 adb shell am start -n $A --es prueba inicio; sleep 6
 adb shell am start -n $A --es prueba dividir-demo; sleep 10
 adb exec-out screencap -p > capturas/12-dividida.png
+adb shell am start -n $A --es prueba inicio; sleep 3
+adb shell am start -n $A --es prueba pref:split_ratio=33; sleep 2
+adb shell am start -n $A --es prueba dividir-demo; sleep 8
+adb exec-out screencap -p > capturas/12-dividida-tercio.png
 { adb logcat -d | grep -E "ElsadekSplit" | tail -3; adb shell am stack list; } > capturas/dividida.txt 2>&1
 adb logcat -d | grep -E "FATAL|AndroidRuntime" | tail -60 > capturas/errores.txt
 adb shell dumpsys package $P | grep -E "versionName|firstInstall" > capturas/paquete.txt

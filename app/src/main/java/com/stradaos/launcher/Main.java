@@ -4891,14 +4891,17 @@ public class Main extends Activity {
         boolean internal = "internal".equals(prefs.getString("nav_app", null));
         if (nav == null && !internal) return false;
         if (nav != null && nav.getComponent() != null && pkg.equals(nav.getComponent().getPackageName())) return false;
+        // el área útil: sin la barra de estado de arriba ni la de navegación (si no, las ventanas quedan cortadas abajo)
         android.graphics.Point sz = new android.graphics.Point();
-        getWindowManager().getDefaultDisplay().getRealSize(sz);
-        int W = sz.x, H = sz.y;
+        getWindowManager().getDefaultDisplay().getSize(sz);
+        int W = sz.x, H = sz.y, top = 0;
         if (W <= H) return false;   // pantalla vertical: no se divide
+        int sb = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        if (sb > 0) top = getResources().getDimensionPixelSize(sb);
         int media = W * prefs.getInt("split_ratio", 50) / 100;
         boolean navLeft = !"right".equals(prefs.getString("split_side", "left"));
-        android.graphics.Rect navR = navLeft ? new android.graphics.Rect(0, 0, W - media, H) : new android.graphics.Rect(media, 0, W, H);
-        android.graphics.Rect medR = navLeft ? new android.graphics.Rect(W - media, 0, W, H) : new android.graphics.Rect(0, 0, media, H);
+        android.graphics.Rect navR = navLeft ? new android.graphics.Rect(0, top, W - media, H) : new android.graphics.Rect(media, top, W, H);
+        android.graphics.Rect medR = navLeft ? new android.graphics.Rect(W - media, top, W, H) : new android.graphics.Rect(0, top, media, H);
         final boolean audio = SPLIT_AUDIO.contains(pkg);
         if (!freeformOk(this)) {
             if (!prefs.getBoolean("split_help", false)) {
