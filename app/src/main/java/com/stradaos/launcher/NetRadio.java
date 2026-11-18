@@ -128,9 +128,28 @@ public class NetRadio extends Service {
 
     /** Emisoras de Egipto (las más escuchadas) o, con texto, la búsqueda por nombre en todo el mundo. En hilo aparte. */
     static List<Station> fetch(String query) throws Exception {
-        String path = query == null || query.trim().length() == 0
+        return fetchPath(query == null || query.trim().length() == 0
             ? "/json/stations/bycountrycodeexact/EG?hidebroken=true&order=clickcount&reverse=true&limit=120"
-            : "/json/stations/search?name=" + java.net.URLEncoder.encode(query.trim(), "UTF-8") + "&hidebroken=true&order=clickcount&reverse=true&limit=80";
+            : "/json/stations/search?name=" + java.net.URLEncoder.encode(query.trim(), "UTF-8") + "&hidebroken=true&order=clickcount&reverse=true&limit=80");
+    }
+
+    /** Categoría: «quran», «music», «news» (de Egipto) o «world» (las más escuchadas del mundo árabe). */
+    static List<Station> fetchCategory(String cat) throws Exception {
+        if ("quran".equals(cat)) {
+            List<Station> a = fetchPath("/json/stations/search?tag=quran&hidebroken=true&order=clickcount&reverse=true&limit=60");
+            List<Station> b = fetchPath("/json/stations/search?name=" + java.net.URLEncoder.encode("قرآن", "UTF-8") + "&hidebroken=true&order=clickcount&reverse=true&limit=40");
+            java.util.HashSet<String> seen = new java.util.HashSet<String>();
+            List<Station> out = new ArrayList<Station>();
+            for (Station x : b) if (seen.add(x.url)) out.add(x);
+            for (Station x : a) if (seen.add(x.url)) out.add(x);
+            return out;
+        }
+        if ("music".equals(cat)) return fetchPath("/json/stations/search?countrycode=EG&tag=music&hidebroken=true&order=clickcount&reverse=true&limit=80");
+        if ("news".equals(cat)) return fetchPath("/json/stations/search?language=arabic&tag=news&hidebroken=true&order=clickcount&reverse=true&limit=60");
+        return fetchPath("/json/stations/search?language=arabic&hidebroken=true&order=clickcount&reverse=true&limit=100");
+    }
+
+    private static List<Station> fetchPath(String path) throws Exception {
         Exception last = null;
         for (String host : API) {
             try {

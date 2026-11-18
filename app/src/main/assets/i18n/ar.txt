@@ -1182,3 +1182,10 @@ Avisa 600 m antes de un radar que esté adelante (del mapa sin conexión)	ينب
 Necesita el mapa sin conexión: Ajustes → Mapa y clima → Descargar el mapa de Egipto	محتاج خريطة من غير نت: الإعدادات ← الخريطة والطقس ← تحميل خريطة مصر
 Último saludo automático	آخر ترحيب أوتوماتيك
 Saludar después de una parada de	الترحيب بعد وقفة
+Se acerca el cambio de aceite	قرب معاد تغيير الزيت
+Faltan unos %s para el cambio de aceite.	فاضل حوالي %s على تغيير الزيت.
+Corán	قرآن
+Música	مزيكا
+Noticias	أخبار
+Árabes	عربي
+En vivo	على الهوا

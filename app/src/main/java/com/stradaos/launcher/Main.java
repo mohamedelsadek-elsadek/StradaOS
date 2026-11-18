@@ -2064,10 +2064,13 @@ public class Main extends Activity {
         if (oilLater || (oilDlg != null && oilDlg.isShowing())) return false;
         if (!oilOn() || !prefs.contains("odo_base_km")) return false;
         float now = odoKm();
-        if (now < oilNextKm() || now < prefs.getFloat("oil_snooze_km", 0)) return false;
+        float warnAt = prefs.getFloat("oil_last_km", 0) + prefs.getFloat("oil_warn_km", prefs.getFloat("oil_interval_km", 5000));
+        if (now < Math.min(oilNextKm(), warnAt) || now < prefs.getFloat("oil_snooze_km", 0)) return false;
+        boolean early = now < oilNextKm();
         oilDlg = new TB(this, dlg())
-            .setTitle("Es hora del cambio de aceite")
-            .setMessage(I18n.t("El kilometraje estimado es ≈ " + fmtDist(now) + " y ya toca el cambio de aceite (cada " + fmtDist(prefs.getFloat("oil_interval_km", 5000)) + ").")
+            .setTitle(early ? "Se acerca el cambio de aceite" : "Es hora del cambio de aceite")
+            .setMessage((early ? I18n.f("Faltan unos %s para el cambio de aceite.", fmtDist(oilNextKm() - now))
+                : I18n.t("El kilometraje estimado es ≈ " + fmtDist(now) + " y ya toca el cambio de aceite (cada " + fmtDist(prefs.getFloat("oil_interval_km", 5000)) + ")."))
                 + "\n\n" + I18n.t("¿Ya lo hiciste?"))
             .setPositiveButton("Ya lo hice", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { oilDone(); } })
             .setNegativeButton("Aún no", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
@@ -4854,99 +4857,246 @@ public class Main extends Activity {
     private List<NetRadio.Station> radioList = new ArrayList<NetRadio.Station>();
     private boolean radioEgypt;
 
-    /** Ventana de la radio por internet: favoritas, emisoras de Egipto y búsqueda. */
+    /** Logos de las emisoras: memoria + disco (cache/radio_logos), descargados en segundo plano. */
+    private final android.util.LruCache<String, Bitmap> logoMem = new android.util.LruCache<String, Bitmap>(80);
+
+    private void loadLogo(final String url, final ImageView iv) {
+        iv.setTag(url);
+        if (url == null || url.length() < 8) return;
+        Bitmap m = logoMem.get(url);
+        if (m != null) { iv.setImageBitmap(m); return; }
+        new Thread(new Runnable() { public void run() {
+            Bitmap bm = null;
+            try {
+                File dir = new File(getCacheDir(), "radio_logos"); dir.mkdirs();
+                File f = new File(dir, Integer.toHexString(url.hashCode()) + ".img");
+                byte[] data;
+                if (f.exists() && f.length() > 0) {
+                    data = new byte[(int) f.length()];
+                    java.io.FileInputStream in = new java.io.FileInputStream(f); in.read(data); in.close();
+                } else {
+                    data = Net.get(url, 8000);
+                    if (data.length > 600000) return;
+                    java.io.FileOutputStream os = new java.io.FileOutputStream(f); os.write(data); os.close();
+                }
+                BitmapFactory.Options o = new BitmapFactory.Options(); o.inJustDecodeBounds = true;
+                BitmapFactory.decodeByteArray(data, 0, data.length, o);
+                int sc = 1; while (o.outWidth / sc > 192) sc *= 2;
+                o = new BitmapFactory.Options(); o.inSampleSize = sc;
+                bm = BitmapFactory.decodeByteArray(data, 0, data.length, o);
+            } catch (Throwable ignored) { }
+            final Bitmap fb = bm;
+            if (fb != null) { logoMem.put(url, fb); h.post(new Runnable() { public void run() { if (url.equals(iv.getTag())) iv.setImageBitmap(fb); } }); }
+        }}).start();
+    }
+
+    /** Cuadro del logo: la imagen de la emisora o, mientras carga / si no tiene, la inicial sobre un color. */
+    private FrameLayout logoBox(NetRadio.Station x, float size) {
+        FrameLayout f = new FrameLayout(this);
+        int col = DOCK_COLORS[Math.abs(x.name.hashCode()) % DOCK_COLORS.length];
+        GradientDrawable g = new GradientDrawable(); g.setColor(col); g.setCornerRadius(size * 0.24f * s);
+        f.setBackground(g);
+        String ini = x.name.replaceAll("^(إذاعة|اذاعة|راديو|Radio)\\s*", "").trim();
+        TextView t = tv(ini.length() > 0 ? ini.substring(0, 1) : "♪", size * 0.42f, Color.WHITE, true);
+        t.setGravity(Gravity.CENTER);
+        f.addView(t, new FrameLayout.LayoutParams(-1, -1));
+        ImageView iv = new ImageView(this);
+        iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        if (android.os.Build.VERSION.SDK_INT >= 21) { iv.setClipToOutline(true); }
+        GradientDrawable ig = new GradientDrawable(); ig.setColor(0x00000000); ig.setCornerRadius(size * 0.24f * s); iv.setBackground(ig);
+        f.addView(iv, new FrameLayout.LayoutParams(-1, -1));
+        loadLogo(x.favicon, iv);
+        return f;
+    }
+
+    /** Ecualizador animado (3 barras) mientras suena. */
+    private View eqBars(final int color, float hgt) {
+        final LinearLayout l = new LinearLayout(this);
+        l.setGravity(Gravity.BOTTOM);
+        final View[] bars = new View[3];
+        for (int i = 0; i < 3; i++) {
+            bars[i] = new View(this); bars[i].setBackground(round(color, 2));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) (4 * s), (int) (hgt * s));
+            lp.leftMargin = (int) (2 * s); l.addView(bars[i], lp);
+        }
+        final float[] ph = {0};
+        final Runnable[] tick = new Runnable[1];
+        tick[0] = new Runnable() { public void run() {
+            if (l.getWindowToken() == null && ph[0] > 0) return;
+            ph[0] += 1;
+            for (int i = 0; i < 3; i++) bars[i].setScaleY(0.35f + 0.65f * (float) Math.abs(Math.sin(ph[0] * 0.55 + i * 1.3)));
+            for (View b : bars) { b.setPivotY(hgt * s); }
+            h.postDelayed(this, 120);
+        }};
+        h.post(tick[0]);
+        return l;
+    }
+
+    private String radioCat = "fav";
+
+    /** Ventana de la radio por internet: lo que suena con su logo, categorías y emisoras en tarjetas. */
     private void showRadio() {
         final LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding((int) (18 * s), (int) (4 * s), (int) (18 * s), (int) (4 * s));
-        // lo que suena
+        box.setPadding((int) (16 * s), (int) (2 * s), (int) (16 * s), (int) (4 * s));
+        // ── lo que suena
         final LinearLayout now = new LinearLayout(this);
         now.setGravity(Gravity.CENTER_VERTICAL);
-        now.setPadding((int) (14 * s), (int) (10 * s), (int) (10 * s), (int) (10 * s));
-        now.setBackground(round(INNER, 12));
-        final TextView nowTv = tv("", 15, TEXT, true);
-        now.addView(nowTv, new LinearLayout.LayoutParams(0, -2, 1));
-        final TextView stopBtn = tv("Detener", 14, Color.WHITE, true);
-        stopBtn.setPadding((int) (14 * s), (int) (8 * s), (int) (14 * s), (int) (8 * s));
-        stopBtn.setBackground(round(RED, 10));
-        now.addView(stopBtn);
+        now.setPadding((int) (10 * s), (int) (10 * s), (int) (12 * s), (int) (10 * s));
+        GradientDrawable ng = new GradientDrawable(GradientDrawable.Orientation.RIGHT_LEFT, new int[]{RED_DARK, INNER});
+        ng.setCornerRadius(16 * s);
+        now.setBackground(ng);
         box.addView(now, new LinearLayout.LayoutParams(-1, -2));
-        // búsqueda
+        // ── categorías
+        final String[][] cats = {{"fav", "⭐", "Favoritas"}, {"eg", "🇪🇬", "Egipto"}, {"quran", "🕌", "Corán"}, {"music", "🎵", "Música"}, {"news", "📰", "Noticias"}, {"world", "🌍", "Árabes"}};
+        android.widget.HorizontalScrollView cs = new android.widget.HorizontalScrollView(this);
+        cs.setHorizontalScrollBarEnabled(false);
+        final LinearLayout catRow = new LinearLayout(this);
+        cs.addView(catRow);
+        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(-1, -2);
+        clp.topMargin = (int) (10 * s);
+        box.addView(cs, clp);
+        // ── búsqueda
         LinearLayout sr = new LinearLayout(this);
         sr.setGravity(Gravity.CENTER_VERTICAL);
-        sr.setPadding(0, (int) (10 * s), 0, (int) (6 * s));
+        sr.setPadding((int) (12 * s), 0, (int) (4 * s), 0);
+        sr.setBackground(round(INNER, 12));
+        TextView mg = tv("🔍", 15, MUTED, false);
+        sr.addView(mg);
         final android.widget.EditText q = new android.widget.EditText(this);
         q.setHint(I18n.t("Buscar emisora (nombre)"));
         q.setSingleLine(true);
-        q.setTextColor(TEXT);
-        q.setHintTextColor(MUTED);
+        q.setBackground(null);
+        q.setTextColor(TEXT); q.setHintTextColor(MUTED);
         q.setTextSize(TypedValue.COMPLEX_UNIT_PX, 15 * s * FONT);
+        q.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
         sr.addView(q, new LinearLayout.LayoutParams(0, -2, 1));
-        final TextView favB = tv("Favoritas", 13, TEXT, true), egB = tv("Egipto", 13, TEXT, true), goB = tv("Buscar", 13, Color.WHITE, true);
-        for (TextView b : new TextView[]{goB, favB, egB}) {
-            b.setPadding((int) (12 * s), (int) (8 * s), (int) (12 * s), (int) (8 * s));
-            b.setBackground(round(b == goB ? RED : BTN, 10));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-            lp.leftMargin = (int) (6 * s);
-            sr.addView(b, lp);
-        }
-        box.addView(sr);
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-1, -2);
+        slp.topMargin = (int) (8 * s);
+        box.addView(sr, slp);
         final TextView info = tv("", 12, MUTED, false);
-        info.setSingleLine(false);
+        info.setPadding((int) (4 * s), (int) (6 * s), 0, (int) (4 * s));
         box.addView(info);
         final LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         android.widget.ScrollView sv = new android.widget.ScrollView(this);
         sv.addView(list);
-        box.addView(sv, new LinearLayout.LayoutParams(-1, (int) (330 * s)));
+        box.addView(sv, new LinearLayout.LayoutParams(-1, (int) (300 * s)));
 
         final Runnable[] render = new Runnable[1];
-        render[0] = new Runnable() { public void run() {
-            NetRadio.Station c = NetRadio.current;
-            int st = NetRadio.state;
-            nowTv.setText(c == null ? I18n.t("Nada sonando · elige una emisora") : c.name + " · " + I18n.t(st == 1 ? "Conectando…" : st == 3 ? "No se pudo reproducir" : "Sonando"));
-            stopBtn.setVisibility(c == null ? View.GONE : View.VISIBLE);
-            list.removeAllViews();
-            List<NetRadio.Station> show = radioEgypt ? radioList : NetRadio.favorites(prefs);
-            if (show.isEmpty()) {
-                TextView e = tv(radioEgypt ? "Cargando…" : "Todavía no tienes favoritas: toca «Egipto» o busca, y toca ☆ para guardarla", 14, MUTED, false);
-                e.setSingleLine(false);
-                e.setPadding(0, (int) (16 * s), 0, 0);
-                list.addView(e);
-            }
-            for (final NetRadio.Station x : show) {
-                LinearLayout r = new LinearLayout(this_());
-                r.setGravity(Gravity.CENTER_VERTICAL);
-                r.setPadding((int) (12 * s), (int) (10 * s), (int) (6 * s), (int) (10 * s));
-                boolean playing = c != null && c.url.equals(x.url);
-                r.setBackground(round(playing ? RED_DARK : CARD, 10));
-                LinearLayout col = new LinearLayout(this_());
-                col.setOrientation(LinearLayout.VERTICAL);
-                col.addView(tv(x.name, 15, playing ? RED : TEXT, true));
-                String sub = (x.tags == null ? "" : x.tags.replace(",", " · ")) + (x.bitrate > 0 ? "  " + x.bitrate + " kbps" : "");
-                if (sub.trim().length() > 0) col.addView(tv(sub.trim(), 11, MUTED, false));
-                r.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
-                final TextView star = tv(NetRadio.isFav(prefs, x) ? "★" : "☆", 22, NetRadio.isFav(prefs, x) ? 0xFFF2A61D : MUTED, false);
-                star.setPadding((int) (12 * s), 0, (int) (8 * s), 0);
-                r.addView(star);
-                star.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { NetRadio.toggleFav(prefs, x); render[0].run(); } });
-                r.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { NetRadio.play(Main.this, x); render[0].run(); } });
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-                lp.bottomMargin = (int) (6 * s);
-                list.addView(r, lp);
-            }
-            favB.setBackground(round(radioEgypt ? BTN : RED_DARK, 10));
-            egB.setBackground(round(radioEgypt ? RED_DARK : BTN, 10));
-        }};
         final Runnable[] load = new Runnable[1];
+        render[0] = new Runnable() { public void run() {
+            final NetRadio.Station c = NetRadio.current;
+            final int st = NetRadio.state;
+            // ── barra de lo que suena
+            now.removeAllViews();
+            if (c == null) {
+                TextView e = tv("🎧  " + I18n.t("Nada sonando · elige una emisora"), 15, SOFT, true);
+                now.addView(e, new LinearLayout.LayoutParams(0, (int) (52 * s), 1));
+                e.setGravity(Gravity.CENTER_VERTICAL);
+            } else {
+                now.addView(logoBox(c, 52), new LinearLayout.LayoutParams((int) (52 * s), (int) (52 * s)));
+                LinearLayout col = new LinearLayout(Main.this);
+                col.setOrientation(LinearLayout.VERTICAL);
+                col.setPadding((int) (12 * s), 0, (int) (8 * s), 0);
+                col.addView(tv(c.name, 17, TEXT, true));
+                LinearLayout stl = new LinearLayout(Main.this);
+                stl.setGravity(Gravity.CENTER_VERTICAL);
+                if (st == 2) { stl.addView(eqBars(RED, 12)); }
+                TextView sx = tv(st == 1 ? "Conectando…" : st == 3 ? "No se pudo reproducir" : st == 0 ? "En pausa" : "En vivo", 12, st == 3 ? 0xFFE3262F : st == 2 ? RED : MUTED, true);
+                sx.setPadding((int) (6 * s), 0, 0, 0);
+                stl.addView(sx);
+                col.addView(stl);
+                now.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
+                FrameLayout pb = circleIcon(st == 2 || st == 1 ? "pause" : "play_arrow", 46, 24, RED);
+                pb.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+                    if (st == 2 || st == 1) NetRadio.pause(Main.this); else NetRadio.play(Main.this, c);
+                    h.postDelayed(render[0], 300);
+                }});
+                now.addView(pb, new LinearLayout.LayoutParams((int) (46 * s), (int) (46 * s)));
+                FrameLayout xb = circleIcon("arrow_back", 40, 18, BTN);
+                ((ImageView) xb.getChildAt(0)).setImageBitmap(null);
+                TextView xt = tv("✕", 16, TEXT, true); xt.setGravity(Gravity.CENTER);
+                xb.addView(xt, new FrameLayout.LayoutParams(-1, -1));
+                xb.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { NetRadio.stop(Main.this); h.postDelayed(render[0], 300); } });
+                LinearLayout.LayoutParams xlp = new LinearLayout.LayoutParams((int) (40 * s), (int) (40 * s));
+                xlp.leftMargin = (int) (8 * s);
+                now.addView(xb, xlp);
+            }
+            // ── categorías
+            catRow.removeAllViews();
+            for (final String[] ct : cats) {
+                boolean on = ct[0].equals(radioCat);
+                TextView ch = tv(ct[1] + "  " + I18n.t(ct[2]), 14, on ? Color.WHITE : SOFT, true);
+                ch.setPadding((int) (14 * s), (int) (8 * s), (int) (14 * s), (int) (8 * s));
+                ch.setBackground(round(on ? RED : INNER, 18));
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+                lp.rightMargin = (int) (8 * s);
+                catRow.addView(ch, lp);
+                ch.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+                    radioCat = ct[0]; q.setText("");
+                    if ("fav".equals(radioCat)) { info.setText(""); render[0].run(); } else load[0].run();
+                }});
+            }
+            // ── tarjetas (2 por fila)
+            list.removeAllViews();
+            List<NetRadio.Station> show = "fav".equals(radioCat) ? NetRadio.favorites(prefs) : radioList;
+            if (show.isEmpty()) {
+                TextView e = tv("fav".equals(radioCat) ? "Todavía no tienes favoritas: toca «Egipto» o busca, y toca ☆ para guardarla" : "Cargando…", 14, MUTED, false);
+                e.setSingleLine(false); e.setGravity(Gravity.CENTER);
+                e.setPadding((int) (20 * s), (int) (30 * s), (int) (20 * s), 0);
+                list.addView(e, new LinearLayout.LayoutParams(-1, -2));
+            }
+            LinearLayout row = null;
+            for (int i = 0; i < show.size(); i++) {
+                final NetRadio.Station x = show.get(i);
+                if (i % 2 == 0) {
+                    row = new LinearLayout(Main.this);
+                    LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(-1, -2);
+                    rl.bottomMargin = (int) (8 * s);
+                    list.addView(row, rl);
+                }
+                boolean playing = c != null && c.url.equals(x.url);
+                boolean fav = NetRadio.isFav(prefs, x);
+                LinearLayout card = new LinearLayout(Main.this);
+                card.setGravity(Gravity.CENTER_VERTICAL);
+                card.setPadding((int) (8 * s), (int) (8 * s), (int) (4 * s), (int) (8 * s));
+                GradientDrawable cg = new GradientDrawable(); cg.setColor(playing ? RED_DARK : CARD); cg.setCornerRadius(14 * s);
+                if (playing) cg.setStroke((int) (2 * s), RED);
+                card.setBackground(cg);
+                card.addView(logoBox(x, 46), new LinearLayout.LayoutParams((int) (46 * s), (int) (46 * s)));
+                LinearLayout col = new LinearLayout(Main.this);
+                col.setOrientation(LinearLayout.VERTICAL);
+                col.setPadding((int) (10 * s), 0, (int) (2 * s), 0);
+                TextView nm = tv(x.name, 14, playing ? RED : TEXT, true);
+                col.addView(nm);
+                String tg = x.tags == null ? "" : x.tags.split(",")[0].trim();
+                String sub = (tg.length() > 0 ? tg : "") + (x.bitrate > 0 ? (tg.length() > 0 ? " · " : "") + x.bitrate + " kbps" : "");
+                if (playing) { LinearLayout pl = new LinearLayout(Main.this); pl.setGravity(Gravity.CENTER_VERTICAL); pl.addView(eqBars(RED, 10));
+                    TextView lv = tv("En vivo", 11, RED, true); lv.setPadding((int) (5 * s), 0, 0, 0); pl.addView(lv); col.addView(pl); }
+                else if (sub.length() > 0) col.addView(tv(sub, 11, MUTED, false));
+                card.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
+                final TextView star = tv(fav ? "★" : "☆", 22, fav ? 0xFFF2A61D : MUTED, false);
+                star.setPadding((int) (8 * s), (int) (4 * s), (int) (8 * s), (int) (4 * s));
+                card.addView(star);
+                star.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { NetRadio.toggleFav(prefs, x); render[0].run(); } });
+                card.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { NetRadio.play(Main.this, x); render[0].run(); } });
+                LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, -2, 1);
+                if (i % 2 == 0) cl.rightMargin = (int) (8 * s);
+                row.addView(card, cl);
+            }
+            if (row != null && show.size() % 2 == 1) row.addView(new View(Main.this), new LinearLayout.LayoutParams(0, 1, 1));
+        }};
         load[0] = new Runnable() { public void run() {
-            final String query = q.getText().toString();
-            radioEgypt = true; radioList = new ArrayList<NetRadio.Station>();
+            final String query = q.getText().toString().trim();
+            final String cat = query.length() > 0 ? "search" : radioCat;
+            radioList = new ArrayList<NetRadio.Station>();
             info.setText(I18n.t("Cargando emisoras de radio-browser.info…"));
             render[0].run();
             new Thread(new Runnable() { public void run() {
                 List<NetRadio.Station> got = null; String err = null;
-                try { got = NetRadio.fetch(query); } catch (Throwable e) { err = shortNetErr(String.valueOf(e)); }
+                try { got = "search".equals(cat) ? NetRadio.fetch(query) : "eg".equals(cat) ? NetRadio.fetch(null) : NetRadio.fetchCategory(cat); }
+                catch (Throwable e) { err = shortNetErr(String.valueOf(e)); }
                 final List<NetRadio.Station> g = got; final String er = err;
                 h.post(new Runnable() { public void run() {
                     if (g != null) { radioList = g; info.setText(I18n.f("%d emisoras", g.size())); }
@@ -4955,13 +5105,13 @@ public class Main extends Activity {
                 }});
             }}).start();
         }};
-        goB.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { load[0].run(); } });
-        egB.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { q.setText(""); load[0].run(); } });
-        favB.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { radioEgypt = false; info.setText(""); render[0].run(); } });
-        stopBtn.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { NetRadio.stop(Main.this); h.postDelayed(render[0], 300); } });
+        q.setOnEditorActionListener(new TextView.OnEditorActionListener() { public boolean onEditorAction(TextView v, int a, KeyEvent e) {
+            if (q.getText().toString().trim().length() > 0) { radioCat = "search"; load[0].run(); }
+            return true;
+        }});
         NetRadio.onChange = new Runnable() { public void run() { render[0].run(); } };
-        radioEgypt = NetRadio.favorites(prefs).isEmpty();
-        if (radioEgypt) load[0].run(); else render[0].run();
+        if (NetRadio.favorites(prefs).isEmpty() && "fav".equals(radioCat)) radioCat = "eg";
+        if ("fav".equals(radioCat)) render[0].run(); else load[0].run();
         new TB(this, dlg()).setTitle("Radio por internet").setView(box)
             .setPositiveButton("Cerrar", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { NetRadio.onChange = null; } }).show();
     }
@@ -5041,13 +5191,21 @@ public class Main extends Activity {
              .append("، بعد ").append(Voice.durWords(n[1])).append(". ");
             if (oilOn()) {
                 float left = oilNextKm() - odoKm();
+                float warnLeft = prefs.getFloat("oil_interval_km", 5000) - prefs.getFloat("oil_warn_km", prefs.getFloat("oil_interval_km", 5000));
                 if (left <= 0) t.append("معاد تغيير الزيت عدّى، ياريت تغيره قريب. ");
-                else if (left < 500) t.append("باقي ").append(Math.round(left)).append(" كيلو على تغيير الزيت. ");
+                else if (left < Math.max(500, warnLeft)) t.append("باقي ").append(Math.round(left)).append(" كيلو على تغيير الزيت. ");
             }
             if (firstToday || force) {
-                String[][] docs = {{"doc_car", "رخصة العربية"}, {"doc_driver", "رخصة القيادة"}, {"doc_ins", "تأمين العربية"}};
+                java.util.ArrayList<String[]> docs = new java.util.ArrayList<String[]>();
+                docs.add(new String[]{prefs.getString("doc_car", ""), "رخصة العربية"});
+                docs.add(new String[]{prefs.getString("doc_driver", ""), "رخصة القيادة"});
+                docs.add(new String[]{prefs.getString("doc_ins", ""), "تأمين العربية"});
+                try {
+                    org.json.JSONArray xa = new org.json.JSONArray(prefs.getString("docs_extra", "[]"));
+                    for (int k = 0; k < xa.length(); k++) docs.add(new String[]{xa.getJSONObject(k).optString("d"), xa.getJSONObject(k).optString("n")});
+                } catch (Throwable ignored) { }
                 for (String[] dk : docs) {
-                    int dl = daysTo(prefs.getString(dk[0], ""));
+                    int dl = daysTo(dk[0]);
                     if (dl == Integer.MAX_VALUE) continue;
                     if (dl < 0) t.append(dk[1]).append(" خلصت من ").append(-dl).append(" يوم، جددها. ");
                     else if (dl == 0) t.append(dk[1]).append(" بتخلص النهارده. ");
@@ -6902,6 +7060,13 @@ public class Main extends Activity {
             docRow(docs, "doc_car", "Licencia del vehículo");
             docRow(docs, "doc_driver", "Licencia de conducir");
             docRow(docs, "doc_ins", "Seguro del carro");
+            try {
+                org.json.JSONArray xa = new org.json.JSONArray(prefs.getString("docs_extra", "[]"));
+                for (int k = 0; k < xa.length(); k++) {
+                    String dd = xa.getJSONObject(k).optString("d"); int dl = daysTo(dd);
+                    row(docs, xa.getJSONObject(k).optString("n"), dl == Integer.MAX_VALUE ? null : dl < 0 ? I18n.f("Venció hace %d días", -dl) : I18n.f("Vence en %d días", dl), dd, null);
+                }
+            } catch (Throwable ignored) { }
         }
         LinearLayout f = section(body, "Foto");
         row(f, "Foto del vehículo", "Se usa tal cual; si quieres, le puedes quitar el fondo", CarPhoto.load(this) != null ? "Configurada" : "Sin foto",

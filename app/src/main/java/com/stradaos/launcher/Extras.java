@@ -224,6 +224,11 @@ final class Extras {
                         .put("lon", Math.round(p.getFloat("park_lon", 0) * 1e5) / 1e5).put("t", p.getLong("park_t", 0)));
                 put(root + "/state.json" + aq, st.toString());
                 p.edit().putLong("sync_state_at", t).putLong("sync_ok_at", t).apply();
+                // ajustes que manda Mohamed (o Claude) desde sus programas: car_log/config, se aplica una vez por versión «u»
+                if (aq.length() > 0) try {
+                    String cj = new String(Net.get(root + "/config.json" + aq, 15000), "UTF-8").trim();
+                    if (cj.startsWith("{")) applyConfig(p, new org.json.JSONObject(cj));
+                } catch (Throwable e) { Guard.log("config: " + e); }
                 // una vez al día: la libreta (bencina/mantenimiento) para los avisos de mantenimiento atrasado
                 if (t - p.getLong("maint_read_at", 0) > 20 * 3600000L) {
                     byte[] b = Net.get(root + "/docs.json" + authQ(p), 20000);
@@ -256,6 +261,30 @@ final class Extras {
         {new String[]{"رديتر"}, "مية الرديتر", 40000, 24},
         {new String[]{"بطارية"}, "البطارية", 0, 30},
     };
+
+    /**
+     * {u, odo_km, oil:{last_km, every_km, warn_km}, docs:{doc_car, doc_driver, doc_ins}, docs_extra:[{n, d}]}
+     * Solo se aplica si «u» es más nuevo que lo último aplicado (así no pisa lo que se cambie después en la pantalla).
+     */
+    static void applyConfig(SharedPreferences p, org.json.JSONObject c) throws org.json.JSONException {
+        long u = c.optLong("u", 0);
+        if (u <= p.getLong("config_u", 0)) return;
+        SharedPreferences.Editor e = p.edit().putLong("config_u", u);
+        if (c.has("odo_km")) e.putFloat("odo_base_km", (float) c.getDouble("odo_km")).putFloat("odo_gps_m", 0).putFloat("oil_snooze_km", 0);
+        org.json.JSONObject oil = c.optJSONObject("oil");
+        if (oil != null) {
+            e.putBoolean("oil_on", true).putFloat("oil_snooze_km", 0);
+            if (oil.has("last_km")) e.putFloat("oil_last_km", (float) oil.getDouble("last_km"));
+            if (oil.has("every_km")) e.putFloat("oil_interval_km", (float) oil.getDouble("every_km"));
+            if (oil.has("warn_km")) e.putFloat("oil_warn_km", (float) oil.getDouble("warn_km"));
+        }
+        org.json.JSONObject d = c.optJSONObject("docs");
+        if (d != null) for (java.util.Iterator<String> it = d.keys(); it.hasNext(); ) { String k = it.next(); e.putString(k, d.getString(k)); }
+        org.json.JSONArray x = c.optJSONArray("docs_extra");
+        if (x != null) e.putString("docs_extra", x.toString());
+        e.apply();
+        Guard.log("config aplicada u=" + u);
+    }
 
     static String maintDue(SharedPreferences p, String docsJson, long now) {
         org.json.JSONArray out = new org.json.JSONArray();
