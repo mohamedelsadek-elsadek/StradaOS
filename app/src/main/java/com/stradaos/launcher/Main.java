@@ -4870,7 +4870,13 @@ public class Main extends Activity {
 
     private Bundle splitOpts(android.graphics.Rect r) {
         android.app.ActivityOptions o = android.app.ActivityOptions.makeBasic();
-        try { android.app.ActivityOptions.class.getMethod("setLaunchWindowingMode", int.class).invoke(o, 5); } catch (Throwable ignored) { }   // 5 = ventana libre
+        // Android 10+ ignora el tamaño si no se pide «ventana libre», y ese método es interno: HiddenApiBypass lo habilita
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            try { org.lsposed.hiddenapibypass.HiddenApiBypass.addHiddenApiExemptions("Landroid/app/ActivityOptions;"); } catch (Throwable ignored) { }
+        }
+        try {
+            android.app.ActivityOptions.class.getMethod("setLaunchWindowingMode", int.class).invoke(o, 5);   // 5 = ventana libre
+        } catch (Throwable e) { android.util.Log.w("ElsadekSplit", "setLaunchWindowingMode: " + e); }
         o.setLaunchBounds(r);
         return o.toBundle();
     }

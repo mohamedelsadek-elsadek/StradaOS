@@ -138,5 +138,7 @@ def legacyJar = tasks.register('legacyRcJar', Jar) {
 tasks.named('preBuild') { dependsOn legacyJar }
 
 dependencies {
+    // pantalla dividida (Elsadek Car): permite pedir «ventana libre» al abrir una app (Android 9+)
+    implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:6.1'
     implementation files(layout.buildDirectory.file('intermediates/hiddenapi/stradaos-legacy-rc.jar')).builtBy(legacyJar)
 }
