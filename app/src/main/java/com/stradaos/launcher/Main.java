@@ -4711,14 +4711,17 @@ public class Main extends Activity {
             lp.leftMargin = (int) (3 * s);
             tabs.addView(odoTabs[i], lp);
         }
-        place(p, tabs, 0, 8, w, 22);
+        place(p, tabs, 0, 6, w, 22);
+        boolean roomy = hh >= 140;                      // في المساحة الصغيرة: من غير عنوان، والرقم أصغر
         odoTitleTv = tv("", 11, MUTED, false);
         odoTitleTv.setGravity(Gravity.CENTER);
-        place(p, odoTitleTv, 0, 34, w, 16);
+        place(p, odoTitleTv, 0, 32, w, 16);
+        if (!roomy) odoTitleTv.setVisibility(View.GONE);
+        float numTop = roomy ? 50 : 29, numH = hh - numTop - 34;
         LinearLayout big = new LinearLayout(this);
         big.setGravity(Gravity.CENTER);
         big.setBaselineAligned(true);
-        odoBigTv = tv("", 36, TEXT, true);
+        odoBigTv = tv("", Math.max(20, Math.min(36, numH * 0.72f)), TEXT, true);
         odoBigTv.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
         odoBigTv.setShadowLayer(10 * s, 0, 0, RED);   // توهج خفيف بلون التمييز
         odoBigTv.setLetterSpacing(0.04f);
@@ -4726,16 +4729,16 @@ public class Main extends Activity {
         odoUnitTv = tv("", 13, MUTED, true);
         odoUnitTv.setPadding((int) (6 * s), 0, 0, 0);
         big.addView(odoUnitTv);
-        place(p, big, 0, 50, w, 48);
+        place(p, big, 0, numTop, w, numH);
         odoBarBg = new View(this);
         odoBarBg.setBackground(round(shade(INNER, -0.3f), 4));
-        place(p, odoBarBg, 22, hh - 40, w - 44, 7);
+        place(p, odoBarBg, 22, hh - 31, w - 44, 6);
         odoBar = new View(this);
         odoBar.setBackground(round(RED, 4));
-        place(p, odoBar, 22, hh - 40, 0, 7);
-        odoSubTv = tv("", 12, SOFT, false);
+        place(p, odoBar, 22, hh - 31, 0, 6);
+        odoSubTv = tv("", 11, SOFT, false);
         odoSubTv.setGravity(Gravity.CENTER);
-        place(p, odoSubTv, 0, hh - 28, w, 20);
+        place(p, odoSubTv, 0, hh - 22, w, 17);
         p.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
             prefs.edit().putInt("odo_view", (prefs.getInt("odo_view", 0) + 1) % 3).apply(); updateOdoPanel(); } });
         p.setOnLongClickListener(new View.OnLongClickListener() { public boolean onLongClick(View v) {
@@ -5028,7 +5031,9 @@ public class Main extends Activity {
     /** Ícono según el tipo de emisora (por nombre y etiquetas). */
     static String stationEmoji(NetRadio.Station x) {
         String t = norm(x.name + " " + (x.tags == null ? "" : x.tags));
-        if (t.contains("قران") || t.contains("quran") || t.contains("islam") || t.contains("اسلام") || t.contains("دين") || t.contains("religio")) return "🕌";
+        if (t.contains("قران") || t.contains("quran") || t.contains("islam") || t.contains("اسلام") || t.contains("دين") || t.contains("religio")
+            || t.contains("عفاسي") || t.contains("مشاري") || t.contains("دوسري") || t.contains("مصطفي اسماعيل") || t.contains("عبد الباسط")
+            || t.contains("عبدالباسط") || t.contains("منشاوي") || t.contains("حصري") || t.contains("تلاوه") || t.contains("قارئ") || t.contains("sudais") || t.contains("سديس")) return "🕌";
         if (t.contains("news") || t.contains("اخبار") || t.contains("بي بي سي") || t.contains("bbc") || t.contains("talk")) return "📰";
         if (t.contains("sport") || t.contains("رياض")) return "⚽";
         if (t.contains("kid") || t.contains("اطفال")) return "🧸";
