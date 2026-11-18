@@ -1180,3 +1180,4 @@ Descargando el mapa de Egipto…	بيحمّل خريطة مصر…
 Aviso de radares	تنبيه الرادارات
 Avisa 600 m antes de un radar que esté adelante (del mapa sin conexión)	ينبهك قبل الرادار اللي قدامك بـ 600 متر (من الخريطة اللي من غير نت)
 Necesita el mapa sin conexión: Ajustes → Mapa y clima → Descargar el mapa de Egipto	محتاج خريطة من غير نت: الإعدادات ← الخريطة والطقس ← تحميل خريطة مصر
+Último saludo automático	آخر ترحيب أوتوماتيك

@@ -209,7 +209,9 @@ public class Main extends Activity {
         if (extrasOn()) {
             Voice.init(this);
             // la pantalla arrancó (carro encendido): saludo, si no hubo uno en los últimos 15 min
-            if (!greetedProcess) { greetedProcess = true; h.postDelayed(new Runnable() { public void run() { greet(false); } }, 9000); }
+            if (!greetedProcess) { greetedProcess = true; carStarted("arranque"); }
+            h.removeCallbacks(sleepWatch);
+            h.postDelayed(sleepWatch, 20000);
         }
         LiveMapView.headingUp = prefs.getBoolean("map_heading", false);
         lm = (LocationManager) getSystemService(LOCATION_SERVICE);
@@ -1762,7 +1764,12 @@ public class Main extends Activity {
     /** Distancia medida por el GPS (también con StradaOS detrás de otras apps). */
     private final LocationListener odoListener = new LocationListener() {
         public void onLocationChanged(Location l) {
-            if (extrasOn()) try { Extras.tripStep(prefs, l); safetyStep(l); radarStep(l, l.hasSpeed() ? l.getSpeed() * 3.6f : 0); } catch (Throwable ignored) { }
+            if (extrasOn()) try {
+                long wall = System.currentTimeMillis();
+                if (lastFixWall > 0 && wall - lastFixWall > 10 * 60000L) carStarted("gps");
+                lastFixWall = wall;
+                Extras.tripStep(prefs, l); safetyStep(l); radarStep(l, l.hasSpeed() ? l.getSpeed() * 3.6f : 0);
+            } catch (Throwable ignored) { }
             try { odoStep(l); } catch (Throwable ignored) { }
         }
         public void onStatusChanged(String p, int st, Bundle e) { }
@@ -4955,6 +4962,34 @@ public class Main extends Activity {
 
     private Main this_() { return this; }
     private static boolean greetedProcess;
+    private long lastFixWall, watchWall, watchUp;
+
+    /**
+     * Muchas pantallas de carro no se apagan ni avisan «pantalla encendida»: se duermen (suspensión profunda) con el
+     * carro apagado. Al despertar, el reloj de pared saltó pero uptimeMillis no (no cuenta el tiempo dormido).
+     */
+    private final Runnable sleepWatch = new Runnable() { public void run() {
+        long w = System.currentTimeMillis(), u = SystemClock.uptimeMillis();
+        if (watchWall > 0 && (w - watchWall) - (u - watchUp) > 5 * 60000L && extrasOn()) carStarted("despertar");
+        watchWall = w; watchUp = u;
+        h.removeCallbacks(this);
+        h.postDelayed(this, 20000);
+    }};
+
+    /** El carro arrancó: saluda cuando el clima ya cargó (o a los 30 s), una sola vez aunque lleguen varias señales. */
+    private void carStarted(final String why) {
+        if (!extrasOn()) return;
+        final long t0 = System.currentTimeMillis();
+        if (t0 - prefs.getLong("greet_last", 0) < 15 * 60000L) return;
+        String whyAr = "arranque".equals(why) ? "الشاشة اشتغلت" : "pantalla".equals(why) ? "الشاشة نوّرت" : "gps".equals(why) ? "الـ GPS رجع بعد غياب" : "الشاشة صحيت من النوم";
+        prefs.edit().putString("greet_why", whyAr + " · " + new java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.US).format(new Date(t0))).apply();
+        android.util.Log.i("ElsadekVoz", "arranque detectado: " + why);
+        try { refreshWeatherNow(); } catch (Throwable ignored) { }
+        h.postDelayed(new Runnable() { public void run() {
+            if (weatherNow != null || System.currentTimeMillis() - t0 > 30000) greet(false);
+            else h.postDelayed(this, 2000);
+        }}, 6000);
+    }
 
     /** Saludo al encender el carro (Elsadek Car). force = botón «escuchar ahora». */
     private void greet(boolean force) {
@@ -7172,6 +7207,8 @@ public class Main extends Activity {
                 prefs.edit().putBoolean("radar_on", i == 1).apply(); showSettings(settingsCat); }});
             toggle(va, "Aviso de cansancio", "Después de 2 horas manejando sin parar te sugiere descansar", prefs.getBoolean("fatigue_on", true), new IntCb() { public void on(int i) {
                 prefs.edit().putBoolean("fatigue_on", i == 1).apply(); showSettings(settingsCat); }});
+            String gw = prefs.getString("greet_why", "");
+            if (gw.length() > 0) row(va, "Último saludo automático", gw, null, null);
             row(va, "Escuchar el saludo ahora", Voice.arabicOk() ? null : "Si no se oye: Ajustes de Android → Texto a voz → instala la voz árabe", null,
                 new Runnable() { public void run() { greet(true); } });
         }
@@ -8014,8 +8051,7 @@ public class Main extends Activity {
         public void onReceive(Context c, Intent i) {
             if (Intent.ACTION_SCREEN_OFF.equals(i.getAction())) { screenOffAt = SystemClock.elapsedRealtime(); return; }
             if (screenOffAt > 0 && SystemClock.elapsedRealtime() - screenOffAt > 5 * 60000L && hasWindowFocus()) runBootApp(1500);
-            if (screenOffAt > 0 && SystemClock.elapsedRealtime() - screenOffAt > 10 * 60000L && extrasOn())
-                h.postDelayed(new Runnable() { public void run() { greet(false); } }, 7000);
+            if (screenOffAt > 0 && SystemClock.elapsedRealtime() - screenOffAt > 10 * 60000L && extrasOn()) carStarted("pantalla");
             screenOffAt = 0;
         }
     };
