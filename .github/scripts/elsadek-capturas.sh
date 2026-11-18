@@ -38,7 +38,8 @@ adb shell input swipe 640 600 640 150 300; sleep 2
 adb exec-out screencap -p > capturas/6-ajustes-voz-b.png
 # el carro «se durmió» 20 min: se adelanta el reloj y debe saludar solo (detector de suspensión)
 adb shell am start -n $A --es prueba pref:greet_last=; sleep 2
-adb shell "date \$(date -d '+20 min' +%m%d%H%M%Y.%S)" || adb shell date -s "$(date -d '+20 min' +%Y%m%d.%H%M%S)" || true
+J=$(TZ=Africa/Cairo date -d '+20 min' +%m%d%H%M%Y.%S); echo "salto a $J"
+adb shell date "$J" || true
 sleep 45
 adb logcat -d | grep -E "arranque detectado|ElsadekVoz: (Buenos|صباح|مساء)" | tail -4 > capturas/arranque.txt
 # comandos de voz (el texto como si lo hubiera reconocido Google)
