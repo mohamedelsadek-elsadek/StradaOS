@@ -695,6 +695,12 @@ public class Main extends Activity {
                         .putFloat("oil_last_km", 477596f).putFloat("oil_interval_km", 5000f).putFloat("oil_warn_km", 4000f).apply();
                     rebuild();
                 }
+                else if ("dividir-demo".equals(v)) {   // emulador: Ajustes como «navegador» y Chrome como app de video
+                    Intent ns = getPackageManager().getLaunchIntentForPackage("com.android.settings");
+                    if (ns != null && ns.getComponent() != null) prefs.edit().putString("nav_app", ns.getComponent().flattenToString()).putString("split_apps", "com.android.chrome\n").apply();
+                    android.util.Log.i("ElsadekSplit", "freeform=" + freeformOk(Main.this));
+                    splitTest();
+                }
                 else if (v.startsWith("comando:")) runCommand(v.substring(8));
                 else if ("radio-demo".equals(v)) {   // la emisora egipcia más escuchada, 20 s después se anota cómo va
                     new Thread(new Runnable() { public void run() {
@@ -4812,6 +4818,162 @@ public class Main extends Activity {
             odoBar.setLayoutParams(lp);
         }
     }
+    // ───────────────────────── Pantalla dividida (Elsadek Car) ─────────────────────────
+    // Al abrir Anghami, YouTube… desde el launcher: el navegador se abre del lado del conductor y la app del otro lado.
+    // Usa ventanas con tamaño (freeform). Si la pantalla no las permite, abre la app y, si es de audio, el navegador delante.
+
+    static final String[] SPLIT_PKGS = {"com.anghami", "com.google.android.youtube", "com.google.android.apps.youtube.music",
+        "com.spotify.music", "deezer.android.app", "com.soundcloud.android", "com.netflix.mediaclient", "net.mbc.shahid",
+        "com.watchit.vod", "app.revanced.android.youtube", "com.vanced.android.youtube", "com.zionhuang.music",
+        "com.maxrave.simpmusic", "app.vitune.android"};
+    static final java.util.List<String> SPLIT_AUDIO = java.util.Arrays.asList("com.anghami", "com.google.android.apps.youtube.music",
+        "com.spotify.music", "deezer.android.app", "com.soundcloud.android", "com.zionhuang.music", "com.maxrave.simpmusic", "app.vitune.android");
+    private boolean splitBusy;
+
+    @Override
+    public void startActivity(Intent i) {
+        if (!splitBusy && i != null) {
+            try { if (splitLaunch(i, false)) return; } catch (Throwable ignored) { }
+        }
+        super.startActivity(i);
+    }
+
+    private java.util.List<String> splitApps() {
+        String s = prefs.getString("split_apps", null);
+        if (s == null) return java.util.Arrays.asList(SPLIT_PKGS);
+        java.util.List<String> out = new ArrayList<String>();
+        for (String k : s.split("\n")) if (k.length() > 0) out.add(k);
+        return out;
+    }
+
+    static boolean freeformOk(Context c) {
+        if (android.os.Build.VERSION.SDK_INT < 24) return false;
+        try { if (c.getPackageManager().hasSystemFeature(PackageManager.FEATURE_FREEFORM_WINDOW_MANAGEMENT)) return true; } catch (Throwable ignored) { }
+        try { return Settings.Global.getInt(c.getContentResolver(), "enable_freeform_support", 0) != 0; } catch (Throwable e) { return false; }
+    }
+
+    /** El navegador elegido (o el primero instalado). null si es el de StradaOS (el mapa de la pantalla de inicio) o no hay. */
+    private Intent splitNavIntent() {
+        String c = prefs.getString("nav_app", null);
+        if ("internal".equals(c)) return null;
+        Intent n = null;
+        ComponentName cn = c == null ? null : ComponentName.unflattenFromString(c);
+        if (cn != null) {
+            n = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setComponent(cn);
+        } else {
+            String p = firstInstalled(NAV_PKGS);
+            if (p != null) n = getPackageManager().getLaunchIntentForPackage(p);
+        }
+        if (n != null) n.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+        return n;
+    }
+
+    private Bundle splitOpts(android.graphics.Rect r) {
+        android.app.ActivityOptions o = android.app.ActivityOptions.makeBasic();
+        try { android.app.ActivityOptions.class.getMethod("setLaunchWindowingMode", int.class).invoke(o, 5); } catch (Throwable ignored) { }   // 5 = ventana libre
+        o.setLaunchBounds(r);
+        return o.toBundle();
+    }
+
+    /** true si se encargó de abrir la app (dividida o con su alternativa). force: «Probar ahora». */
+    private boolean splitLaunch(final Intent i, boolean force) {
+        if (!extrasOn() || android.os.Build.VERSION.SDK_INT < 24) return false;
+        if (!force && !prefs.getBoolean("split_on", true)) return false;
+        String pkg = i.getComponent() != null ? i.getComponent().getPackageName() : i.getPackage();
+        if (pkg == null || !splitApps().contains(pkg)) return false;
+        final Intent nav = splitNavIntent();
+        boolean internal = "internal".equals(prefs.getString("nav_app", null));
+        if (nav == null && !internal) return false;
+        if (nav != null && nav.getComponent() != null && pkg.equals(nav.getComponent().getPackageName())) return false;
+        android.graphics.Point sz = new android.graphics.Point();
+        getWindowManager().getDefaultDisplay().getRealSize(sz);
+        int W = sz.x, H = sz.y;
+        if (W <= H) return false;   // pantalla vertical: no se divide
+        int media = W * prefs.getInt("split_ratio", 50) / 100;
+        boolean navLeft = !"right".equals(prefs.getString("split_side", "left"));
+        android.graphics.Rect navR = navLeft ? new android.graphics.Rect(0, 0, W - media, H) : new android.graphics.Rect(media, 0, W, H);
+        android.graphics.Rect medR = navLeft ? new android.graphics.Rect(W - media, 0, W, H) : new android.graphics.Rect(0, 0, media, H);
+        final boolean audio = SPLIT_AUDIO.contains(pkg);
+        if (!freeformOk(this)) {
+            if (!prefs.getBoolean("split_help", false)) {
+                prefs.edit().putBoolean("split_help", true).apply();
+                Extras.diag(prefs, "قسمة الشاشة: الشاشة مش بتدعمها");
+                new TB(this, dlg()).setTitle("Pantalla dividida")
+                    .setMessage(I18n.t("Esta pantalla no tiene activadas las ventanas libres. Para dividirla: Ajustes de Android → Opciones de desarrollador → «Habilitar ventanas de forma libre» y «Forzar actividades redimensionables», y reinicia. Mientras tanto, la música sigue sonando y el navegador queda delante."))
+                    .setPositiveButton("OK", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) { splitFallback(i, nav, audio); } })
+                    .setOnCancelListener(new DialogInterface.OnCancelListener() { public void onCancel(DialogInterface d) { splitFallback(i, nav, audio); } })
+                    .show();
+            } else splitFallback(i, nav, audio);
+            return true;
+        }
+        splitBusy = true;
+        try {
+            if (nav != null) super.startActivity(nav, splitOpts(navR));
+            super.startActivity(i, splitOpts(medR));
+            if (!prefs.getBoolean("split_logged", false)) { prefs.edit().putBoolean("split_logged", true).apply(); Extras.diag(prefs, "قسمة الشاشة اشتغلت"); }
+        } catch (Throwable e) {
+            splitBusy = false;
+            return false;
+        } finally { splitBusy = false; }
+        markUsed(pkg);
+        return true;
+    }
+
+    /** Sin ventanas libres: abre la app; si es de audio, 2,5 s después el navegador (o el mapa de inicio) queda delante. */
+    private void splitFallback(Intent i, final Intent nav, boolean audio) {
+        splitBusy = true;
+        try { super.startActivity(i); } catch (Throwable ignored) { } finally { splitBusy = false; }
+        if (!audio) return;
+        h.postDelayed(new Runnable() { public void run() {
+            splitBusy = true;
+            try {
+                if (nav != null) Main.super.startActivity(nav);
+                else Main.super.startActivity(new Intent(Main.this, Main.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
+            } catch (Throwable ignored) { } finally { splitBusy = false; }
+        }}, 2500);
+    }
+
+    private void pickSplitApps() {
+        final java.util.List<String> pk = new ArrayList<String>();
+        final java.util.List<String> nm = new ArrayList<String>();
+        java.util.LinkedHashSet<String> cand = new java.util.LinkedHashSet<String>(java.util.Arrays.asList(SPLIT_PKGS));
+        cand.addAll(java.util.Arrays.asList(MUSIC_PKGS));
+        cand.addAll(splitApps());
+        PackageManager pm = getPackageManager();
+        for (String p : cand) {
+            if (pm.getLaunchIntentForPackage(p) == null) continue;
+            String l = p;
+            try { l = pm.getApplicationLabel(pm.getApplicationInfo(p, 0)).toString(); } catch (Throwable ignored) { }
+            pk.add(p); nm.add(l);
+        }
+        if (pk.isEmpty()) { toast("No hay apps de música o video instaladas"); return; }
+        final java.util.List<String> cur = new ArrayList<String>(splitApps());
+        final boolean[] on = new boolean[pk.size()];
+        for (int k = 0; k < on.length; k++) on[k] = cur.contains(pk.get(k));
+        new TB(this, dlg()).setTitle("Apps que dividen la pantalla")
+            .setMultiChoiceItems(nm.toArray(new String[0]), on, new DialogInterface.OnMultiChoiceClickListener() {
+                public void onClick(DialogInterface d, int w, boolean c) { on[w] = c; } })
+            .setPositiveButton("OK", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
+                StringBuilder b = new StringBuilder();
+                for (String p : cur) if (!pk.contains(p)) b.append(p).append('\n');   // las no instaladas se quedan
+                for (int k = 0; k < on.length; k++) if (on[k]) b.append(pk.get(k)).append('\n');
+                prefs.edit().putString("split_apps", b.toString()).apply();
+                showSettings(settingsCat);
+            }}).show();
+    }
+
+    /** «Probar ahora»: la primera app de la lista que esté instalada. */
+    private void splitTest() {
+        for (String p : splitApps()) {
+            Intent i = getPackageManager().getLaunchIntentForPackage(p);
+            if (i == null) continue;
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+            if (!splitLaunch(i, true)) toast("Elige primero la app de navegación");
+            return;
+        }
+        toast("No hay apps de música o video instaladas");
+    }
+
     static final int REQ_VOICE = 4242;
 
     // ───────────────────────── أوامر صوتية (Elsadek Car) ─────────────────────────
@@ -7588,6 +7750,20 @@ public class Main extends Activity {
             if (gw.length() > 0) row(va, "Último saludo automático", gw, null, null);
             row(va, "Escuchar el saludo ahora", Voice.arabicOk() ? null : "Si no se oye: Ajustes de Android → Texto a voz → instala la voz árabe", null,
                 new Runnable() { public void run() { greet(true); } });
+            LinearLayout sp = section(body, "Pantalla dividida");
+            toggle(sp, "Navegador al lado de la música", "Al abrir Anghami, YouTube… el navegador se abre de tu lado y la app del otro lado",
+                prefs.getBoolean("split_on", true), new IntCb() { public void on(int i) {
+                prefs.edit().putBoolean("split_on", i == 1).apply(); showSettings(settingsCat); }});
+            int sr = prefs.getInt("split_ratio", 50);
+            segmented(sp, "Espacio de la app de música o video", null, new String[]{"Un tercio", "La mitad", "Dos tercios"}, sr <= 34 ? 0 : sr >= 66 ? 2 : 1, new IntCb() { public void on(int i) {
+                prefs.edit().putInt("split_ratio", i == 0 ? 33 : i == 2 ? 67 : 50).apply(); showSettings(settingsCat); }});
+            segmented(sp, "El navegador va", null, new String[]{"A la izquierda (conductor)", "A la derecha"}, "right".equals(prefs.getString("split_side", "left")) ? 1 : 0, new IntCb() { public void on(int i) {
+                prefs.edit().putString("split_side", i == 1 ? "right" : "left").apply(); showSettings(settingsCat); }});
+            row(sp, "Apps que dividen la pantalla", null, null, new Runnable() { public void run() { pickSplitApps(); } });
+            row(sp, "App de navegación preferida", null, autoLabel("nav_app", NAV_PKGS, "Toca para elegir"), new Runnable() { public void run() { pickFor("nav_app", "Navegación"); } });
+            row(sp, freeformOk(this) ? "La pantalla permite dividirse" : "La pantalla todavía no permite dividirse",
+                freeformOk(this) ? null : "Ajustes de Android → Opciones de desarrollador → «Habilitar ventanas de forma libre» y «Forzar actividades redimensionables», y reinicia", null, null);
+            row(sp, "Probar ahora", null, null, new Runnable() { public void run() { splitTest(); } });
         }
         toggle(top, "Horario de oración y resumen del viaje", "Arriba: el próximo adhan y lo recorrido en este viaje. Toca para ver el horario completo",
             extrasOn(), new IntCb() { public void on(int i) {

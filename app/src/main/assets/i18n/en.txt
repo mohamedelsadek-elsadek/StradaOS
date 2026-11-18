@@ -1135,3 +1135,18 @@ Vino	Wine
 Noche violeta	Violet night
 Grafito y azul	Graphite and blue
 Arena del desierto	Desert sand
+Pantalla dividida	Split screen
+Navegador al lado de la música	Navigation beside music
+Al abrir Anghami, YouTube… el navegador se abre de tu lado y la app del otro lado	Opening Anghami, YouTube… puts navigation on your side and the app on the other
+Espacio de la app de música o video	Space for the music or video app
+Un tercio	One third
+La mitad	Half
+Dos tercios	Two thirds
+El navegador va	Navigation goes
+A la izquierda (conductor)	Left (driver)
+A la derecha	Right
+Apps que dividen la pantalla	Apps that split the screen
+La pantalla permite dividirse	This screen can split ✓
+La pantalla todavía no permite dividirse	This screen can't split yet
+No hay apps de música o video instaladas	No music or video apps installed
+Elige primero la app de navegación	Choose a navigation app first

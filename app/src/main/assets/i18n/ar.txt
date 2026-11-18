@@ -1198,3 +1198,20 @@ Corregir el odómetro	ظبّط العداد
 En el cuadro del vehículo	في مربع العربية
 Odómetro	العداد
 Foto	الصورة
+Pantalla dividida	تقسيم الشاشة
+Navegador al lado de la música	الخريطة جنب الأغاني
+Al abrir Anghami, YouTube… el navegador se abre de tu lado y la app del otro lado	لما تفتح أنغامي أو يوتيوب… الخريطة تفتح ناحيتك والبرنامج في الناحية التانية
+Espacio de la app de música o video	مساحة برنامج الأغاني أو الفيديو
+Un tercio	التلت
+La mitad	النص
+Dos tercios	التلتين
+El navegador va	الخريطة تبقى
+A la izquierda (conductor)	على الشمال (ناحية السواق)
+A la derecha	على اليمين
+Apps que dividen la pantalla	البرامج اللي بتقسم الشاشة
+La pantalla permite dividirse	الشاشة بتدعم التقسيم ✓
+La pantalla todavía no permite dividirse	الشاشة لسه مش مفعّل فيها التقسيم
+Ajustes de Android → Opciones de desarrollador → «Habilitar ventanas de forma libre» y «Forzar actividades redimensionables», y reinicia	إعدادات أندرويد ← خيارات المطوّرين ← فعّل «Enable freeform windows» و«Force activities to be resizable» وبعدين اعمل ريستارت للشاشة
+Esta pantalla no tiene activadas las ventanas libres. Para dividirla: Ajustes de Android → Opciones de desarrollador → «Habilitar ventanas de forma libre» y «Forzar actividades redimensionables», y reinicia. Mientras tanto, la música sigue sonando y el navegador queda delante.	الشاشة دي لسه مش مفعّل فيها النوافذ الحرة. عشان تتقسم: إعدادات أندرويد ← خيارات المطوّرين ← فعّل «Enable freeform windows» و«Force activities to be resizable» وبعدين ريستارت. لحد ما تعملها: الأغاني هتفضل شغالة والخريطة قدامك.
+No hay apps de música o video instaladas	مفيش برامج أغاني أو فيديو متسطبة
+Elige primero la app de navegación	اختار برنامج الخريطة الأول

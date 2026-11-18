@@ -62,6 +62,15 @@ adb shell am start -n $A --es prueba inicio; shot 11-odo-total 3
 adb shell am start -n $A --es prueba pref:odo_view=1; shot 11-odo-viaje 3
 adb shell am start -n $A --es prueba pref:odo_view=2; shot 11-odo-aceite 3
 adb shell am start -n $A --es prueba pref:odo_view=0; sleep 2
+# pantalla dividida: ventanas libres activadas, Ajustes a la izquierda (navegador) y Chrome a la derecha
+adb shell settings put global enable_freeform_support 1
+adb shell settings put global force_resizable_activities 1
+adb shell am start -n $A --es prueba inicio; sleep 3
+adb shell am start -n $A --es prueba dividir-demo; sleep 8
+adb exec-out screencap -p > capturas/12-dividida.png
+{ adb logcat -d | grep -E "ElsadekSplit" | tail -3; adb shell dumpsys activity activities | grep -E "mode=freeform|windowingMode=5|bounds=Rect" | head -12; } > capturas/dividida.txt
+adb shell am start -n $A --es prueba inicio; sleep 2
+adb shell settings put global enable_freeform_support 0
 # temas: «Azul marino y oro» en el inicio y la galería en Ajustes → Apariencia
 adb shell am start -n $A --es prueba pref:palette=1; shot 8-tema-inicio 6
 adb shell am start -n $A --es prueba ajustes:5; shot 9-temas 5
