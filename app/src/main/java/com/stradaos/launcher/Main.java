@@ -689,6 +689,11 @@ public class Main extends Activity {
                 else if ("oracion".equals(v)) showPrayerTrip();
                 else if ("saludo".equals(v)) greet(true);
                 else if ("radio".equals(v)) showRadio();
+                else if ("odo-demo".equals(v)) {   // odómetro y aceite de ejemplo (como los de Mohamed)
+                    prefs.edit().putFloat("odo_base_km", 479596f).putFloat("odo_gps_m", 0).putBoolean("oil_on", true)
+                        .putFloat("oil_last_km", 477596f).putFloat("oil_interval_km", 5000f).putFloat("oil_warn_km", 4000f).apply();
+                    rebuild();
+                }
                 else if (v.startsWith("comando:")) runCommand(v.substring(8));
                 else if ("radio-demo".equals(v)) {   // la emisora egipcia más escuchada, 20 s después se anota cómo va
                     new Thread(new Runnable() { public void run() {
@@ -1648,7 +1653,11 @@ public class Main extends Activity {
         placeWrap(card, chip, 20, 46);
 
         Bitmap photo = CarPhoto.load(this);
-        if (photo != null) {
+        boolean odoSlot = extrasOn() && !"photo".equals(prefs.getString("car_slot", "odo"));
+        odoBigTv = null;
+        if (odoSlot) {
+            buildOdoPanel(card, 18, 78, 264, 160 + dy);
+        } else if (photo != null) {
             ImageView car = new ImageView(this);
             // 2.18: una foto con fondo (sin recortar) llena el recuadro con esquinas redondas; la recortada, como siempre
             boolean cutout = false;
@@ -4553,10 +4562,28 @@ public class Main extends Activity {
     }
 
     private GradientDrawable round(int color, float r) {
-        GradientDrawable d = new GradientDrawable();
-        d.setColor(color);
+        GradientDrawable d;
+        if (look3d && Color.alpha(color) == 255) {
+            // 3D: un poco más claro arriba, más oscuro abajo, y un borde claro fino (como luz desde arriba)
+            d = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{shade(color, 0.10f), shade(color, -0.14f)});
+            d.setStroke(Math.max(1, (int) (s * 0.8f)), shade(color, 0.22f));
+        } else {
+            d = new GradientDrawable();
+            d.setColor(color);
+        }
         d.setCornerRadius(r * s);
         return d;
+    }
+
+    /** Estilo 3D (Ajustes → Apariencia); en Elsadek Car arranca encendido. */
+    static boolean look3d;
+
+    /** f > 0 aclara hacia blanco, f < 0 oscurece hacia negro. */
+    static int shade(int c, float f) {
+        int a = Color.alpha(c), r = Color.red(c), g = Color.green(c), b = Color.blue(c);
+        if (f >= 0) { r += (int) ((255 - r) * f); g += (int) ((255 - g) * f); b += (int) ((255 - b) * f); }
+        else { r = (int) (r * (1 + f)); g = (int) (g * (1 + f)); b = (int) (b * (1 + f)); }
+        return Color.argb(a, r, g, b);
     }
 
     private void place(ViewGroup parent, View v, float x, float y, float w, float hh) {
@@ -4578,6 +4605,7 @@ public class Main extends Activity {
     private FrameLayout card(float x, float y, float w, float hh, int color) {
         FrameLayout c = new FrameLayout(this);
         c.setBackground(round(color, 20));
+        if (look3d && android.os.Build.VERSION.SDK_INT >= 21) c.setElevation(10 * s);
         place(board, c, x, y, w, hh);
         return c;
     }
@@ -4598,7 +4626,15 @@ public class Main extends Activity {
         FrameLayout f = new FrameLayout(this);
         GradientDrawable g = new GradientDrawable();
         g.setShape(GradientDrawable.OVAL);
-        g.setColor(color);
+        if (look3d) {
+            // botón 3D: brillo arriba a la izquierda y sombra abajo
+            g.setColors(new int[]{shade(color, 0.38f), color, shade(color, -0.32f)});
+            g.setGradientType(GradientDrawable.RADIAL_GRADIENT);
+            g.setGradientCenter(0.35f, 0.28f);
+            g.setGradientRadius(d * s * 0.85f);
+            g.setStroke(Math.max(1, (int) s), shade(color, 0.30f));
+            if (android.os.Build.VERSION.SDK_INT >= 21) f.setElevation(7 * s);
+        } else g.setColor(color);
         f.setBackground(g);
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams((int) (ic * s), (int) (ic * s));
         lp.gravity = Gravity.CENTER;
@@ -4649,6 +4685,105 @@ public class Main extends Activity {
     // ───────────────────────── Elsadek Car: horario de oración y resumen del viaje ─────────────────────────
 
     private TextView prayerTv, tripTv;
+
+    // ───────────────────────── العداد مكان صورة العربية (Elsadek Car) ─────────────────────────
+    private TextView odoBigTv, odoUnitTv, odoSubTv, odoTitleTv;
+    private View odoBar, odoBarBg;
+    private final TextView[] odoTabs = new TextView[3];
+
+    /** العداد: الرئيسي / عداد الرحلة / عداد الزيت. ضغطة = اللي بعده، ضغطة طويلة = صورة العربية بدله. */
+    private void buildOdoPanel(FrameLayout card, float x, float y, float w, float hh) {
+        FrameLayout p = new FrameLayout(this);
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{shade(INNER, -0.25f), shade(INNER, 0.06f)});
+        bg.setCornerRadius(16 * s);
+        bg.setStroke(Math.max(1, (int) s), shade(INNER, 0.18f));
+        p.setBackground(bg);
+        place(card, p, x, y, w, hh);
+        LinearLayout tabs = new LinearLayout(this);
+        tabs.setGravity(Gravity.CENTER);
+        String[] tn = {"العداد", "الرحلة", "الزيت"};
+        for (int i = 0; i < 3; i++) {
+            odoTabs[i] = tv(tn[i], 11, MUTED, true);
+            odoTabs[i].setPadding((int) (9 * s), (int) (3 * s), (int) (9 * s), (int) (3 * s));
+            final int k = i;
+            odoTabs[i].setOnClickListener(new View.OnClickListener() { public void onClick(View v) { prefs.edit().putInt("odo_view", k).apply(); updateOdoPanel(); } });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            lp.leftMargin = (int) (3 * s);
+            tabs.addView(odoTabs[i], lp);
+        }
+        place(p, tabs, 0, 8, w, 22);
+        odoTitleTv = tv("", 11, MUTED, false);
+        odoTitleTv.setGravity(Gravity.CENTER);
+        place(p, odoTitleTv, 0, 34, w, 16);
+        LinearLayout big = new LinearLayout(this);
+        big.setGravity(Gravity.CENTER);
+        big.setBaselineAligned(true);
+        odoBigTv = tv("", 36, TEXT, true);
+        odoBigTv.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+        odoBigTv.setShadowLayer(10 * s, 0, 0, RED);   // توهج خفيف بلون التمييز
+        odoBigTv.setLetterSpacing(0.04f);
+        big.addView(odoBigTv);
+        odoUnitTv = tv("", 13, MUTED, true);
+        odoUnitTv.setPadding((int) (6 * s), 0, 0, 0);
+        big.addView(odoUnitTv);
+        place(p, big, 0, 50, w, 48);
+        odoBarBg = new View(this);
+        odoBarBg.setBackground(round(shade(INNER, -0.3f), 4));
+        place(p, odoBarBg, 22, hh - 40, w - 44, 7);
+        odoBar = new View(this);
+        odoBar.setBackground(round(RED, 4));
+        place(p, odoBar, 22, hh - 40, 0, 7);
+        odoSubTv = tv("", 12, SOFT, false);
+        odoSubTv.setGravity(Gravity.CENTER);
+        place(p, odoSubTv, 0, hh - 28, w, 20);
+        p.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+            prefs.edit().putInt("odo_view", (prefs.getInt("odo_view", 0) + 1) % 3).apply(); updateOdoPanel(); } });
+        p.setOnLongClickListener(new View.OnLongClickListener() { public boolean onLongClick(View v) {
+            new TB(Main.this, dlg()).setTitle("Este cuadro")
+                .setItems(new String[]{I18n.t("Mostrar la foto del vehículo"), I18n.t("Corregir el odómetro")}, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w2) {
+                    if (w2 == 0) { prefs.edit().putString("car_slot", "photo").apply(); rebuild(); } else showSettings(C_MAINT);
+                }}).show();
+            return true; } });
+        updateOdoPanel();
+    }
+
+    private void updateOdoPanel() {
+        if (odoBigTv == null) return;
+        int v = prefs.getInt("odo_view", 0);
+        for (int i = 0; i < 3; i++) {
+            odoTabs[i].setTextColor(i == v ? Color.WHITE : MUTED);
+            odoTabs[i].setBackground(i == v ? round(RED, 10) : null);
+        }
+        String unit = useMph() ? "ميل" : "كم";
+        java.text.NumberFormat nf = java.text.NumberFormat.getIntegerInstance(java.util.Locale.US);
+        odoBar.setVisibility(View.GONE); odoBarBg.setVisibility(View.GONE);
+        if (v == 0) {
+            odoTitleTv.setText("إجمالي اللي العربية مشيته");
+            if (!prefs.contains("odo_base_km")) { odoBigTv.setText("—"); odoUnitTv.setText(""); odoSubTv.setText("اضغط ضغطة طويلة وحط رقم العداد"); return; }
+            odoBigTv.setText(nf.format(Math.round(toUnit(odoKm())))); odoUnitTv.setText(unit);
+            odoSubTv.setText("تقديري: آخر قراية + المسافة بالـ GPS");
+        } else if (v == 1) {
+            float km = Extras.tripKm(prefs); long min = Extras.tripMin(prefs);
+            odoTitleTv.setText(km < 0.05f ? "مفيش رحلة دلوقتي" : "الرحلة الحالية");
+            odoBigTv.setText(String.format(java.util.Locale.US, "%.1f", toUnit(km))); odoUnitTv.setText(unit);
+            float lk = prefs.getFloat("last_trip_m", 0) / 1000f;
+            odoSubTv.setText(km >= 0.05f ? Voice.durWords((int) min) + " سواقة" + (min > 0 ? " · " + Math.round(km / (min / 60f)) + " كم/س" : "")
+                : lk > 0 ? "آخر رحلة " + String.format(java.util.Locale.US, "%.1f", toUnit(lk)) + " " + unit : "");
+        } else {
+            odoTitleTv.setText("عداد الزيت");
+            if (!oilOn() || !prefs.contains("odo_base_km")) { odoBigTv.setText("—"); odoUnitTv.setText(""); odoSubTv.setText("فعّل تذكير الزيت من الإعدادات ← الصيانة"); return; }
+            float every = prefs.getFloat("oil_interval_km", 5000), since = odoKm() - prefs.getFloat("oil_last_km", 0), left = every - since;
+            odoBigTv.setText(nf.format(Math.round(toUnit(Math.max(0, since))))); odoUnitTv.setText(unit);
+            odoSubTv.setText(left > 0 ? "فاضل " + nf.format(Math.round(toUnit(left))) + " " + unit + " على التغيير" : "معاد التغيير عدّى!");
+            odoBar.setVisibility(View.VISIBLE); odoBarBg.setVisibility(View.VISIBLE);
+            float frac = Math.max(0, Math.min(1, since / every));
+            int col = frac >= 1 ? 0xFFE3262F : frac >= prefs.getFloat("oil_warn_km", every) / every ? 0xFFF2A61D : 0xFF2DBE6C;
+            odoBar.setBackground(round(col, 4));
+            ViewGroup.LayoutParams lp = odoBar.getLayoutParams();
+            lp.width = (int) (odoBarBg.getLayoutParams().width * frac);
+            odoBar.setLayoutParams(lp);
+        }
+    }
     static final int REQ_VOICE = 4242;
 
     // ───────────────────────── أوامر صوتية (Elsadek Car) ─────────────────────────
@@ -4890,20 +5025,45 @@ public class Main extends Activity {
         }}).start();
     }
 
-    /** Cuadro del logo: la imagen de la emisora o, mientras carga / si no tiene, la inicial sobre un color. */
+    /** Ícono según el tipo de emisora (por nombre y etiquetas). */
+    static String stationEmoji(NetRadio.Station x) {
+        String t = norm(x.name + " " + (x.tags == null ? "" : x.tags));
+        if (t.contains("قران") || t.contains("quran") || t.contains("islam") || t.contains("اسلام") || t.contains("دين") || t.contains("religio")) return "🕌";
+        if (t.contains("news") || t.contains("اخبار") || t.contains("بي بي سي") || t.contains("bbc") || t.contains("talk")) return "📰";
+        if (t.contains("sport") || t.contains("رياض")) return "⚽";
+        if (t.contains("kid") || t.contains("اطفال")) return "🧸";
+        if (t.contains("kalth") || t.contains("كلثوم") || t.contains("tarab") || t.contains("طرب") || t.contains("classic")) return "🎻";
+        if (t.contains("music") || t.contains("fm") || t.contains("pop") || t.contains("hits") || t.contains("اغاني")) return "🎵";
+        return "📻";
+    }
+
+    /** Cuadro del logo: el logo de la emisora sobre blanco o, si no tiene, su ícono sobre un degradado de dos colores. */
     private FrameLayout logoBox(NetRadio.Station x, float size) {
-        FrameLayout f = new FrameLayout(this);
-        int col = DOCK_COLORS[Math.abs(x.name.hashCode()) % DOCK_COLORS.length];
-        GradientDrawable g = new GradientDrawable(); g.setColor(col); g.setCornerRadius(size * 0.24f * s);
+        final FrameLayout f = new FrameLayout(this);
+        int h0 = Math.abs(x.name.hashCode());
+        int c1 = DOCK_COLORS[h0 % DOCK_COLORS.length], c2 = DOCK_COLORS[(h0 / 7 + 3) % DOCK_COLORS.length];
+        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{shade(c1, 0.15f), shade(c2, -0.25f)});
+        g.setCornerRadius(size * 0.26f * s);
+        g.setStroke(Math.max(1, (int) s), shade(c1, 0.35f));
         f.setBackground(g);
-        String ini = x.name.replaceAll("^(إذاعة|اذاعة|راديو|Radio)\\s*", "").trim();
-        TextView t = tv(ini.length() > 0 ? ini.substring(0, 1) : "♪", size * 0.42f, Color.WHITE, true);
+        if (android.os.Build.VERSION.SDK_INT >= 21) f.setElevation(4 * s);
+        final TextView t = tv(stationEmoji(x), size * 0.46f, Color.WHITE, false);
         t.setGravity(Gravity.CENTER);
+        t.setShadowLayer(6 * s, 0, 2 * s, 0x66000000);
         f.addView(t, new FrameLayout.LayoutParams(-1, -1));
-        ImageView iv = new ImageView(this);
-        iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        if (android.os.Build.VERSION.SDK_INT >= 21) { iv.setClipToOutline(true); }
-        GradientDrawable ig = new GradientDrawable(); ig.setColor(0x00000000); ig.setCornerRadius(size * 0.24f * s); iv.setBackground(ig);
+        final ImageView iv = new ImageView(this) {
+            @Override public void setImageBitmap(Bitmap bm) {
+                super.setImageBitmap(bm);
+                if (bm == null) return;
+                // hay logo: plato blanco redondeado y el logo entero adentro
+                GradientDrawable w = new GradientDrawable(); w.setColor(Color.WHITE); w.setCornerRadius(size * 0.26f * s);
+                f.setBackground(w);
+                t.setVisibility(View.GONE);
+            }
+        };
+        iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        int pad = (int) (size * 0.1f * s);
+        iv.setPadding(pad, pad, pad, pad);
         f.addView(iv, new FrameLayout.LayoutParams(-1, -1));
         loadLogo(x.favicon, iv);
         return f;
@@ -5320,7 +5480,7 @@ public class Main extends Activity {
     }
 
     private void updateExtras() {
-        if (prayerTv == null && tripTv == null) return;
+        if (prayerTv == null && tripTv == null) { updateOdoPanel(); return; }
         try {
             Extras.tripRollover(prefs, System.currentTimeMillis());
             if (extrasOn()) Extras.sync(this, prefs, getString(R.string.sync_db));
@@ -5330,6 +5490,7 @@ public class Main extends Activity {
                 prayerTv.setText(I18n.t(Extras.PRAYER[n[0]]) + " " + clockText(n[2])
                     + (vertical ? "" : " · " + I18n.f("en %s", durText(n[1]))));
             }
+            updateOdoPanel();
             if (tripTv != null) {
                 float km = Extras.tripKm(prefs);
                 tripTv.setText(km < 0.05f ? I18n.t("Sin viaje") : tripText(km, Extras.tripMin(prefs)));
@@ -6496,6 +6657,7 @@ public class Main extends Activity {
     static int dlg() { return LIGHT ? AlertDialog.THEME_DEVICE_DEFAULT_LIGHT : AlertDialog.THEME_DEVICE_DEFAULT_DARK; }
 
     private void applyTheme() {
+        look3d = prefs.getBoolean("look3d", getResources().getBoolean(R.bool.extras_on));
         String mode = prefs.getString("theme", "dark");
         LIGHT = "light".equals(mode)
                 || ("auto".equals(mode) && !darkHours())
@@ -7069,6 +7231,8 @@ public class Main extends Activity {
             } catch (Throwable ignored) { }
         }
         LinearLayout f = section(body, "Foto");
+        if (extrasOn()) segmented(f, "En el cuadro del vehículo", null, new String[]{"Odómetro", "Foto"}, "photo".equals(prefs.getString("car_slot", "odo")) ? 1 : 0, new IntCb() { public void on(int i) {
+            prefs.edit().putString("car_slot", i == 1 ? "photo" : "odo").apply(); rebuild(); showSettings(settingsCat); }});
         row(f, "Foto del vehículo", "Se usa tal cual; si quieres, le puedes quitar el fondo", CarPhoto.load(this) != null ? "Configurada" : "Sin foto",
             new Runnable() { public void run() { photoMenu(); } });
         LinearLayout un = section(body, "Unidades");
@@ -7178,6 +7342,9 @@ public class Main extends Activity {
                 }});
             }
         }
+        LinearLayout l3 = section(body, "Estilo 3D");
+        toggle(l3, "Tarjetas y botones en 3D", "Relieve, brillo y sombra", look3d, new IntCb() { public void on(int i) {
+            prefs.edit().putBoolean("look3d", i == 1).apply(); applyTheme(); rebuild(); }});
         LinearLayout th = section(body, "Temas");
         LinearLayout thr = rowBase(th, "Tema de colores", LIGHT ? "En modo claro se usa el tema claro; los temas son para el modo oscuro" : "Fondo, tarjetas, botones y acento. Después puedes cambiar el acento");
         android.widget.HorizontalScrollView hs = new android.widget.HorizontalScrollView(this);

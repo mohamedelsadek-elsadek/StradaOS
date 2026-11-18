@@ -18,6 +18,7 @@ adb shell pm grant $P android.permission.ACCESS_FINE_LOCATION || true
 adb logcat -c
 shot() { sleep "$2"; adb exec-out screencap -p > "capturas/$1.png"; }
 adb shell am start -n $A --es prueba saltar; sleep 8
+adb shell am start -n $A --es prueba odo-demo; sleep 2
 adb emu geo fix 31.2358 30.0445; shot 1-inicio 8
 adb shell am start -n $A --es prueba viaje-demo; shot 2-viaje 5
 adb shell am start -n $A --es prueba oracion; shot 3-oracion 5
@@ -56,6 +57,11 @@ adb shell dumpsys media_session | grep -E "ElsadekRadio|state=PlaybackState" | h
 adb shell am start -n $A --es prueba inicio; shot 7a-radio-inicio 4
 adb shell am start -n $A --es prueba radio; shot 7-radio 5
 adb shell input keyevent KEYCODE_BACK
+# cuadro del odómetro: los tres modos
+adb shell am start -n $A --es prueba inicio; shot 11-odo-total 3
+adb shell am start -n $A --es prueba pref:odo_view=1; shot 11-odo-viaje 3
+adb shell am start -n $A --es prueba pref:odo_view=2; shot 11-odo-aceite 3
+adb shell am start -n $A --es prueba pref:odo_view=0; sleep 2
 # temas: «Azul marino y oro» en el inicio y la galería en Ajustes → Apariencia
 adb shell am start -n $A --es prueba pref:palette=1; shot 8-tema-inicio 6
 adb shell am start -n $A --es prueba ajustes:5; shot 9-temas 5

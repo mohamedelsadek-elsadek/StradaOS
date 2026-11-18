@@ -1189,3 +1189,12 @@ Música	مزيكا
 Noticias	أخبار
 Árabes	عربي
 En vivo	على الهوا
+Estilo 3D	شكل ثلاثي الأبعاد
+Tarjetas y botones en 3D	الكروت والأزرار 3D
+Relieve, brillo y sombra	بروز ولمعة وضل
+Este cuadro	المربع ده
+Mostrar la foto del vehículo	اعرض صورة العربية
+Corregir el odómetro	ظبّط العداد
+En el cuadro del vehículo	في مربع العربية
+Odómetro	العداد
+Foto	الصورة
