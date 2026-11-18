@@ -4818,7 +4818,8 @@ public class Main extends Activity {
         new TB(this, dlg()).setTitle("Cuenta de tus programas").setView(v)
             .setNegativeButton("Cancelar", null)
             .setPositiveButton("Entrar", new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w) {
-                final String e = em.getText().toString().trim(), p = pw.getText().toString();
+                // المسافات اللي بتيجي مع النسخ واللصق بتبوّظ الباسورد
+                final String e = em.getText().toString().replaceAll("\\s+", "").toLowerCase(java.util.Locale.ROOT), p = pw.getText().toString().replaceAll("\\s+", "");
                 toast("Entrando…");
                 new Thread(new Runnable() { public void run() {
                     final String err = Extras.signIn(prefs, e, p);
