@@ -36,6 +36,14 @@ adb shell am start -n $A --es prueba ajustes:3; sleep 3
 adb exec-out screencap -p > capturas/6-ajustes-voz-a.png
 adb shell input swipe 640 600 640 150 300; sleep 2
 adb exec-out screencap -p > capturas/6-ajustes-voz-b.png
+# comandos de voz (el texto como si lo hubiera reconocido Google)
+adb shell am start -n $A --es prueba "'comando:الساعة كام'"; sleep 6
+adb shell am start -n $A --es prueba "'comando:شغل إذاعة القرآن الكريم'"; sleep 25
+adb shell am start -n $A --es prueba "'comando:وقف الراديو'"; sleep 4
+adb shell am start -n $A --es prueba "'comando:افتح Chrome'"; sleep 6
+adb exec-out screencap -p > capturas/10-comando-abrir.png
+adb shell am start -n $A --es prueba inicio; sleep 3
+echo "mapa egipto: $(curl -sI -m 30 https://download.mapsforge.org/maps/v5/africa/egypt.map | grep -iE '^HTTP|content-length' | tr -d '\r' | tr '\n' ' ')" > capturas/mapa.txt
 # radio por internet: lista de Egipto, reproduce la primera y la ventana
 adb shell am start -n $A --es prueba radio-demo; sleep 30
 adb shell dumpsys media_session | grep -E "ElsadekRadio|state=PlaybackState" | head -6 > capturas/radio-sesion.txt

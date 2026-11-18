@@ -687,6 +687,7 @@ public class Main extends Activity {
                 else if ("oracion".equals(v)) showPrayerTrip();
                 else if ("saludo".equals(v)) greet(true);
                 else if ("radio".equals(v)) showRadio();
+                else if (v.startsWith("comando:")) runCommand(v.substring(8));
                 else if ("radio-demo".equals(v)) {   // la emisora egipcia más escuchada, 20 s después se anota cómo va
                     new Thread(new Runnable() { public void run() {
                         try {
@@ -1457,6 +1458,14 @@ public class Main extends Activity {
         }
         prayerTv = null;
         if (extrasOn()) {
+            TextView mic = tv("🎤", 15, TEXT, false);
+            mic.setGravity(Gravity.CENTER);
+            mic.setBackground(round(RED, 14));
+            mic.setPadding((int) (10 * s), (int) (3 * s), (int) (10 * s), (int) (3 * s));
+            mic.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { listenCommand(); } });
+            LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(-2, -2);
+            mlp.rightMargin = (int) (10 * s);
+            right.addView(mic, mlp);
             prayerTv = topPill("nights_stay");
             LinearLayout.LayoutParams qlp = new LinearLayout.LayoutParams(-2, -2);
             qlp.rightMargin = (int) (12 * s);
@@ -1753,7 +1762,7 @@ public class Main extends Activity {
     /** Distancia medida por el GPS (también con StradaOS detrás de otras apps). */
     private final LocationListener odoListener = new LocationListener() {
         public void onLocationChanged(Location l) {
-            if (extrasOn()) try { Extras.tripStep(prefs, l); safetyStep(l); } catch (Throwable ignored) { }
+            if (extrasOn()) try { Extras.tripStep(prefs, l); safetyStep(l); radarStep(l, l.hasSpeed() ? l.getSpeed() * 3.6f : 0); } catch (Throwable ignored) { }
             try { odoStep(l); } catch (Throwable ignored) { }
         }
         public void onStatusChanged(String p, int st, Bundle e) { }
@@ -4625,6 +4634,129 @@ public class Main extends Activity {
     // ───────────────────────── Elsadek Car: horario de oración y resumen del viaje ─────────────────────────
 
     private TextView prayerTv, tripTv;
+    static final int REQ_VOICE = 4242;
+
+    // ───────────────────────── أوامر صوتية (Elsadek Car) ─────────────────────────
+
+    private void listenCommand() {
+        try {
+            Voice.stop();
+            Intent i = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "ar-EG")
+                .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "قول مثلًا: شغّل إذاعة القرآن · الساعة كام · ودّيني البيت");
+            startActivityForResult(i, REQ_VOICE);
+        } catch (Throwable e) {
+            toast("La pantalla no tiene reconocimiento de voz (instala o activa la app de Google)");
+        }
+    }
+
+    /** عربي من غير تشكيل ولا اختلاف الهمزات، للمقارنة */
+    static String norm(String x) {
+        if (x == null) return "";
+        x = x.replaceAll("[\\u064B-\\u0652\\u0640]", "").replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا').replace('ة', 'ه').replace('ى', 'ي');
+        return x.toLowerCase(java.util.Locale.ROOT).replaceAll("\\s+", " ").trim();
+    }
+
+    private void runCommand(String said) {
+        android.util.Log.i("ElsadekVoz", "comando: " + said);
+        final String c = norm(said);
+        Voice.init(this);
+        Calendar now = Calendar.getInstance();
+        if (c.contains("ساعه") || c.contains("الوقت")) { Voice.say(Voice.timeWords(now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE))); return; }
+        if (c.contains("دعاء")) { sayDuaSafar(); return; }
+        if (c.contains("اذان") || c.contains("صلاه")) {
+            double[] sp = prayerSpot(); int[] n = Extras.nextPrayer(sp[0], sp[1], now);
+            Voice.say("أذان " + Voice.PRAYER_AR[n[0]] + " " + Voice.clockWords(n[2] / 60, n[2] % 60) + "، بعد " + Voice.durWords(n[1]));
+            return;
+        }
+        if (c.contains("الجو") || c.contains("حراره") || c.contains("طقس")) {
+            if (weatherNow == null) { Voice.say("مش عارف الجو دلوقتي، مفيش إنترنت"); return; }
+            Weather.Day td = weatherNow.today();
+            Voice.say("الجو " + Voice.sky(weatherNow.code) + "، والحرارة " + Math.round(weatherNow.temp) + (td != null ? "، والعظمى " + Math.round(td.hi) : ""));
+            return;
+        }
+        if (c.contains("وقف") || c.contains("اسكت") || c.contains("اقفل الراديو") || c.contains("اقفل الاغاني")) {
+            if (NetRadio.current != null) NetRadio.pause(this); else sendMediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE);
+            return;
+        }
+        if (c.contains("البيت") && (c.contains("ودي") || c.contains("روح") || c.contains("وصل"))) { navigateSavedSlot("nav_home", "Casa"); return; }
+        if (c.contains("الشغل") && (c.contains("ودي") || c.contains("روح") || c.contains("وصل"))) { navigateSavedSlot("nav_work", "Trabajo"); return; }
+        if (c.startsWith("افتح ")) {
+            String q = c.substring(5).trim();
+            Intent li = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
+            for (android.content.pm.ResolveInfo ri : getPackageManager().queryIntentActivities(li, 0)) {
+                String lab = norm(String.valueOf(ri.loadLabel(getPackageManager())));
+                if (q.length() > 1 && (lab.contains(q) || q.contains(lab))) {
+                    startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                        .setClassName(ri.activityInfo.packageName, ri.activityInfo.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                    return;
+                }
+            }
+            Voice.say("مش لاقي تطبيق اسمه " + q);
+            return;
+        }
+        if (c.contains("راديو") || c.contains("اذاعه") || c.contains("شغل") || c.contains("قران")) {
+            final String q = c.replace("شغل", "").replace("لي", " ").replace("الراديو", "").replace("راديو", "").replace("اذاعه", "").trim();
+            if (q.length() == 0) { if (!NetRadio.resume(this)) showRadio(); return; }
+            for (NetRadio.Station st : NetRadio.favorites(prefs)) if (norm(st.name).contains(q) || q.contains(norm(st.name))) { NetRadio.play(this, st); return; }
+            new Thread(new Runnable() { public void run() {
+                NetRadio.Station best = null;
+                try {
+                    for (String src : new String[]{null, q}) {
+                        for (NetRadio.Station st : NetRadio.fetch(src)) { String n = norm(st.name); if (n.contains(q) || q.contains(n)) { best = st; break; } }
+                        if (best != null) break;
+                    }
+                } catch (Throwable ignored) { }
+                final NetRadio.Station b = best;
+                h.post(new Runnable() { public void run() {
+                    if (b != null) NetRadio.play(Main.this, b);
+                    else { Voice.say("مش لاقي محطة اسمها " + q); showRadio(); }
+                }});
+            }}).start();
+            return;
+        }
+        Voice.say("مش فاهم. قول مثلًا: شغّل إذاعة القرآن، أو الساعة كام، أو ودّيني البيت");
+    }
+
+    // ───────────────────────── تنبيه الرادارات (من خريطة بلا نت) ─────────────────────────
+
+    private volatile ArrayList<double[]> cams = new ArrayList<double[]>();
+    private double camLat = Double.NaN, camLon = Double.NaN;
+    private volatile boolean camLoading;
+    private final java.util.HashSet<String> camWarned = new java.util.HashSet<String>();
+
+    private void radarStep(Location l, float kmh) {
+        if (!prefs.getBoolean("radar_on", true)) return;
+        final OfflineMap fm = LiveMapView.fileMap;
+        if (fm == null) return;
+        final double la = l.getLatitude(), lo = l.getLongitude();
+        if (!camLoading && (Double.isNaN(camLat) || Roads.dist(la, lo, camLat, camLon) > 1500)) {
+            camLoading = true; camLat = la; camLon = lo;
+            new Thread(new Runnable() { public void run() {
+                try { ArrayList<double[]> c = fm.findSpeedCameras(la - 0.03, lo - 0.03, la + 0.03, lo + 0.03); if (c != null) cams = c; }
+                catch (Throwable ignored) { } finally { camLoading = false; }
+            }}).start();
+        }
+        if (kmh < 25) return;
+        for (double[] c : cams) {
+            double d = Roads.dist(la, lo, c[0], c[1]);
+            String key = Math.round(c[0] * 1e4) + "," + Math.round(c[1] * 1e4);
+            if (d > 1200) { camWarned.remove(key); continue; }
+            if (d > 600 || camWarned.contains(key)) continue;
+            if (l.hasBearing()) {   // قدامك بس، مش اللي عديته أو في الاتجاه التاني
+                double br = Math.toDegrees(Math.atan2(Math.toRadians(c[1] - lo) * Math.cos(Math.toRadians(la)), Math.toRadians(c[0] - la)));
+                double diff = Math.abs(((br - l.getBearing()) % 360 + 540) % 360 - 180);
+                if (diff > 40) continue;
+            }
+            camWarned.add(key);
+            int lim = (int) c[2];
+            Voice.init(this);
+            Voice.say("رادار بعد " + (Math.round(d / 50) * 50) + " متر" + (lim > 0 ? "، السرعة المسموحة " + lim : "")
+                + (lim > 0 && kmh > lim ? "، هدّي السرعة" : ""));
+            android.util.Log.i("ElsadekVoz", "radar " + Math.round(d) + " m lim " + lim);
+        }
+    }
 
     /** Fila con la fecha de vencimiento de un documento; tocar = elegir la fecha. El saludo avisa 14 días antes. */
     private void docRow(LinearLayout card, final String key, final String title) {
@@ -5920,6 +6052,13 @@ public class Main extends Activity {
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
         if (req == REQ_HOME) { homeResult(); return; }
+        if (req == REQ_VOICE) {
+            if (res == RESULT_OK && data != null) {
+                ArrayList<String> r = data.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS);
+                if (r != null && !r.isEmpty()) runCommand(r.get(0));
+            }
+            return;
+        }
         if (req == REQ_BACKUP_CREATE || req == REQ_BACKUP_OPEN) {
             if (res == RESULT_OK && data != null && data.getData() != null) backupDocument(data.getData(), req == REQ_BACKUP_CREATE);
             return;
@@ -7028,6 +7167,9 @@ public class Main extends Activity {
             int lim = prefs.getInt("speed_limit", 120);
             segmented(va, "Velocidad máxima en autopista", "Si la vía tiene su límite en el mapa, se usa ese. Sin internet se usa este", new String[]{"No", "100", "120", "140"}, lim == 0 ? 0 : lim == 100 ? 1 : lim == 140 ? 3 : 2, new IntCb() { public void on(int i) {
                 prefs.edit().putInt("speed_limit", i == 0 ? 0 : i == 1 ? 100 : i == 3 ? 140 : 120).apply(); showSettings(settingsCat); }});
+            toggle(va, "Aviso de radares", LiveMapView.fileMap != null ? "Avisa 600 m antes de un radar que esté adelante (del mapa sin conexión)" : "Necesita el mapa sin conexión: Ajustes → Mapa y clima → Descargar el mapa de Egipto",
+                prefs.getBoolean("radar_on", true), new IntCb() { public void on(int i) {
+                prefs.edit().putBoolean("radar_on", i == 1).apply(); showSettings(settingsCat); }});
             toggle(va, "Aviso de cansancio", "Después de 2 horas manejando sin parar te sugiere descansar", prefs.getBoolean("fatigue_on", true), new IntCb() { public void on(int i) {
                 prefs.edit().putBoolean("fatigue_on", i == 1).apply(); showSettings(settingsCat); }});
             row(va, "Escuchar el saludo ahora", Voice.arabicOk() ? null : "Si no se oye: Ajustes de Android → Texto a voz → instala la voz árabe", null,
@@ -7230,6 +7372,14 @@ public class Main extends Activity {
             row(off, LiveMapView.fileMap != null ? LiveMapView.fileMap.describe() : I18n.t("No se pudo abrir: " + LiveMapView.fileErr),
                 "Toca para dejar de usarlo o borrarlo", null, new Runnable() { public void run() { mapFileOptions(); } });
         }
+        if (extrasOn() && !new File(prefs.getString("map_file", "")).getName().equals("egypt.map"))
+            row(off, "Descargar el mapa de Egipto", "Una sola vez (unos 200 MB, mejor con WiFi). Después: mapa sin internet en el desierto y avisos de radares", null,
+                new Runnable() { public void run() {
+                    if (MapDownload.running) { downloadOptions(); return; }
+                    MapDownload.start(Main.this, "africa/egypt.map", "مصر");
+                    toast("Descargando el mapa de Egipto…");
+                    refreshDownloadStatus();
+                }});
         row(off, "Descargar un mapa", "Elige tu país: se descarga gratis de OpenStreetMap (mapsforge) y se usa sin internet", null,
             new Runnable() { public void run() {
                 if (MapDownload.running || MapDownload.paused(Main.this)) downloadOptions(); else chooseMapToDownload("");

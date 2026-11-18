@@ -1173,3 +1173,10 @@ Vence en %d días	بتخلص بعد %d يوم
 Contraseña	الباسورد
 Entrando…	بيدخل…
 Listo: el carro entró con su cuenta	تمام: العربية دخلت بحسابها
+La pantalla no tiene reconocimiento de voz (instala o activa la app de Google)	الشاشة مفيهاش التعرف على الكلام (نزّل أو فعّل تطبيق Google)
+Descargar el mapa de Egipto	تحميل خريطة مصر
+Una sola vez (unos 200 MB, mejor con WiFi). Después: mapa sin internet en el desierto y avisos de radares	مرة واحدة (حوالي 200 ميجا، والأحسن على واي فاي). بعدها: خريطة من غير نت في الصحراوي وتنبيه الرادارات
+Descargando el mapa de Egipto…	بيحمّل خريطة مصر…
+Aviso de radares	تنبيه الرادارات
+Avisa 600 m antes de un radar que esté adelante (del mapa sin conexión)	ينبهك قبل الرادار اللي قدامك بـ 600 متر (من الخريطة اللي من غير نت)
+Necesita el mapa sin conexión: Ajustes → Mapa y clima → Descargar el mapa de Egipto	محتاج خريطة من غير نت: الإعدادات ← الخريطة والطقس ← تحميل خريطة مصر
