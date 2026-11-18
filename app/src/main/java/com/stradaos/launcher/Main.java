@@ -212,6 +212,7 @@ public class Main extends Activity {
             if (!greetedProcess) { greetedProcess = true; carStarted("arranque"); }
             h.removeCallbacks(sleepWatch);
             h.postDelayed(sleepWatch, 20000);
+            h.postDelayed(liveTick, 1000);
         }
         LiveMapView.headingUp = prefs.getBoolean("map_heading", false);
         lm = (LocationManager) getSystemService(LOCATION_SERVICE);
@@ -1159,7 +1160,8 @@ public class Main extends Activity {
         // 2.18: ocultar el reproductor (el mapa gana espacio), la velocidad y el servicio (carros sin GPS) y el aceite
         showPlayer = prefs.getBoolean("show_player", true);
         carSpeed = prefs.getBoolean("car_speed", true);
-        oilHome = carSpeed && prefs.getBoolean("oil_home", true);
+        oilHome = carSpeed && prefs.getBoolean("oil_home", true)
+            && !(extrasOn() && !"photo".equals(prefs.getString("car_slot", "odo")));   // الزيت بقى في مربع العداد
         // barra lateral: del lado del reproductor (como siempre) o fija a la izquierda / derecha (2.17, Druids07)
         String rs = prefs.getString("rail_side", "auto");
         railLeft = "left".equals(rs) || (!"right".equals(rs) && playerLeft);
@@ -1777,12 +1779,19 @@ public class Main extends Activity {
                 long wall = System.currentTimeMillis();
                 if (lastFixWall > 0 && wall - lastFixWall > 10 * 60000L) carStarted("gps");
                 lastFixWall = wall;
+                boolean idleBefore = prefs.getLong("trip_t", 0) == 0 && Extras.tripStartMs(prefs) == 0;
                 if (l.hasSpeed() && l.getSpeed() > 3f) {   // ماشية (> 11 كم/س)
                     long lm = prefs.getLong("last_move", 0);
                     if (lm > 0 && wall - lm > greetGap()) carStarted("movimiento");
                     if (wall - lm > 30000) prefs.edit().putLong("last_move", wall).apply();
                 }
                 Extras.tripStep(prefs, l); safetyStep(l); radarStep(l, l.hasSpeed() ? l.getSpeed() * 3.6f : 0);
+                if (idleBefore && Extras.tripStartMs(prefs) > 0) {   // رحلة جديدة بدأت (بعد وقفة 20 دقيقة): أضمن علامة
+                    Extras.diag(prefs, "رحلة جديدة بدأت");
+                    carStarted("rihla");
+                    prefs.edit().putInt("odo_view", 1).apply();   // المربع يقلب على عداد الرحلة
+                }
+                Extras.sync(Main.this, prefs, getString(R.string.sync_db));   // كمان والشاشة ورا تطبيق تاني
             } catch (Throwable ignored) { }
             try { odoStep(l); } catch (Throwable ignored) { }
         }
@@ -4750,6 +4759,18 @@ public class Main extends Activity {
         updateOdoPanel();
     }
 
+    /** كل ثانية: عداد الرحلة اللحظي وشارة الرحلة فوق. */
+    private final Runnable liveTick = new Runnable() { public void run() {
+        h.removeCallbacks(this);
+        try {
+            if (Extras.tripStartMs(prefs) > 0) {
+                if (prefs.getInt("odo_view", 0) == 1) updateOdoPanel();
+                if (tripTv != null) tripTv.setText(tripText(Extras.tripKm(prefs), Extras.tripMin(prefs)));
+            }
+        } catch (Throwable ignored) { }
+        h.postDelayed(this, 1000);
+    }};
+
     private void updateOdoPanel() {
         if (odoBigTv == null) return;
         int v = prefs.getInt("odo_view", 0);
@@ -4766,12 +4787,17 @@ public class Main extends Activity {
             odoBigTv.setText(nf.format(Math.round(toUnit(odoKm())))); odoUnitTv.setText(unit);
             odoSubTv.setText("تقديري: آخر قراية + المسافة بالـ GPS");
         } else if (v == 1) {
-            float km = Extras.tripKm(prefs); long min = Extras.tripMin(prefs);
-            odoTitleTv.setText(km < 0.05f ? "مفيش رحلة دلوقتي" : "الرحلة الحالية");
-            odoBigTv.setText(String.format(java.util.Locale.US, "%.1f", toUnit(km))); odoUnitTv.setText(unit);
+            float km = Extras.tripKm(prefs);
+            long st0 = Extras.tripStartMs(prefs);
+            odoTitleTv.setText(st0 == 0 ? "مفيش رحلة دلوقتي" : "الرحلة الحالية");
+            odoBigTv.setText(String.format(java.util.Locale.US, "%.2f", toUnit(km))); odoUnitTv.setText(unit);
             float lk = prefs.getFloat("last_trip_m", 0) / 1000f;
-            odoSubTv.setText(km >= 0.05f ? Voice.durWords((int) min) + " سواقة" + (min > 0 ? " · " + Math.round(km / (min / 60f)) + " كم/س" : "")
-                : lk > 0 ? "آخر رحلة " + String.format(java.util.Locale.US, "%.1f", toUnit(lk)) + " " + unit : "");
+            if (st0 > 0) {   // ساعة الرحلة بالثواني من أول ما بدأت
+                long sec = Math.max(0, (System.currentTimeMillis() - st0) / 1000);
+                float hrs = Extras.tripMin(prefs) / 60f;
+                odoSubTv.setText(String.format(java.util.Locale.US, "⏱ %d:%02d:%02d", sec / 3600, (sec / 60) % 60, sec % 60)
+                    + (hrs > 0.05f ? "  ·  " + Math.round(km / hrs) + " كم/س" : ""));
+            } else odoSubTv.setText(lk > 0 ? "آخر رحلة " + String.format(java.util.Locale.US, "%.1f", toUnit(lk)) + " " + unit : "");
         } else {
             odoTitleTv.setText("عداد الزيت");
             if (!oilOn() || !prefs.contains("odo_base_km")) { odoBigTv.setText("—"); odoUnitTv.setText(""); odoSubTv.setText("فعّل تذكير الزيت من الإعدادات ← الصيانة"); return; }
@@ -5304,9 +5330,10 @@ public class Main extends Activity {
     private void carStarted(final String why) {
         if (!extrasOn()) return;
         final long t0 = System.currentTimeMillis();
-        if (t0 - prefs.getLong("greet_last", 0) < greetGap()) return;
+        if (t0 - prefs.getLong("greet_last", 0) < greetGap()) { Extras.diag(prefs, "علامة " + why + " (اترحّب من قريب)"); return; }
+        Extras.diag(prefs, "اتعرف إن العربية دوّرت: " + why);
         String whyAr = "arranque".equals(why) ? "الشاشة اشتغلت" : "pantalla".equals(why) ? "الشاشة نوّرت" : "gps".equals(why) ? "الـ GPS رجع بعد غياب"
-            : "movimiento".equals(why) ? "العربية اتحركت بعد وقفة" : "الشاشة صحيت من النوم";
+            : "movimiento".equals(why) ? "العربية اتحركت بعد وقفة" : "rihla".equals(why) ? "رحلة جديدة بدأت" : "الشاشة صحيت من النوم";
         prefs.edit().putString("greet_why", whyAr + " · " + new java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.US).format(new Date(t0))).apply();
         android.util.Log.i("ElsadekVoz", "arranque detectado: " + why);
         try { refreshWeatherNow(); } catch (Throwable ignored) { }
@@ -5389,6 +5416,7 @@ public class Main extends Activity {
             if (hr >= 0 && hr < 5) t.append("الوقت متأخر، لو حسيت بنعاس اركن وريّح شوية. ");
             t.append("متنساش حزام الأمان.");
             Voice.say(t.toString());
+            Extras.diag(prefs, "اترحّب" + (Voice.arabicOk() ? "" : " (مفيش صوت عربي!)") + (weatherNow == null ? " من غير طقس" : ""));
             android.util.Log.i("ElsadekVoz", t.toString());
             String dm = prefs.getString("dua_mode", "daily");
             if ("always".equals(dm) || ("daily".equals(dm) && (firstToday || force))) {

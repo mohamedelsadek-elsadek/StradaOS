@@ -123,6 +123,7 @@ final class Extras {
         if (d < 20 && !moving) return;                 // ruido del GPS con el carro quieto
         if (d / dt > 70) { tripPrev = l; return; }      // salto imposible (> 250 km/h)
         if (d >= 20) { pendM += d; tripPrev = l; }
+        if (moving && liveStart == 0) liveStart = p.getLong("trip_start", 0) > 0 ? p.getLong("trip_start", 0) : now;
         if (moving) {
             pendS += (long) Math.min(dt, 10);
             if (d < 20) tripPrev = l;
@@ -149,6 +150,7 @@ final class Extras {
         float m = p.getFloat("trip_m", 0);
         long secs = p.getLong("trip_s", 0), start = p.getLong("trip_start", 0);
         SharedPreferences.Editor e = p.edit().putFloat("trip_m", 0).putLong("trip_s", 0).putLong("trip_t", 0).putLong("trip_start", 0);
+        liveStart = 0;
         if (p.contains("last_lat")) e.putFloat("park_lat", p.getFloat("last_lat", 0)).putFloat("park_lon", p.getFloat("last_lon", 0)).putLong("park_t", last);
         if (m >= 300) {
             e.putFloat("last_trip_m", m).putLong("last_trip_s", secs).putLong("last_trip_end", last);
@@ -218,6 +220,7 @@ final class Extras {
                     .put("car", p.getString("car_name", "")).put("ver", Updates.currentVersion(c)).put("u", t);
                 for (String k : new String[]{"doc_car", "doc_driver", "doc_ins"}) if (p.contains(k)) st.put(k, p.getString(k, ""));
                 if (p.contains("docs_extra")) st.put("docs_extra", new org.json.JSONArray(p.getString("docs_extra", "[]")));
+                st.put("diag", new org.json.JSONArray(p.getString("diag", "[]"))).put("greet_last", p.getLong("greet_last", 0));
                 String aq = authQ(p);
                 // مكان الركنة: بيتبعت بس والعربية داخلة بحسابها (القاعدة محمية)
                 if (aq.length() > 0 && p.contains("park_lat"))
@@ -417,6 +420,24 @@ final class Extras {
         } finally {
             h.disconnect();
         }
+    }
+
+    /** بداية الرحلة الحالية (ms) أو 0: للعداد اللحظي. */
+    static volatile long liveStart;
+    static long tripStartMs(SharedPreferences p) {
+        if (p.getLong("trip_t", 0) == 0 && pendM == 0 && pendS == 0) return 0;
+        long t = p.getLong("trip_start", 0);
+        return t > 0 ? t : liveStart;
+    }
+
+    // ── سجل صغير للتشخيص (آخر 12 حدث)، بيتبعت مع الحالة لـ «سجل العربية»
+    static void diag(SharedPreferences p, String msg) {
+        try {
+            org.json.JSONArray a = new org.json.JSONArray(p.getString("diag", "[]")), out = new org.json.JSONArray();
+            for (int i = Math.max(0, a.length() - 11); i < a.length(); i++) out.put(a.get(i));
+            out.put(new java.text.SimpleDateFormat("dd/MM HH:mm:ss", java.util.Locale.US).format(new java.util.Date()) + " " + msg);
+            p.edit().putString("diag", out.toString()).apply();
+        } catch (Throwable ignored) { }
     }
 
     static float tripKm(SharedPreferences p) { return (p.getFloat("trip_m", 0) + pendM) / 1000f; }
