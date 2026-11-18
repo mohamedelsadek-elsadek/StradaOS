@@ -1768,6 +1768,11 @@ public class Main extends Activity {
                 long wall = System.currentTimeMillis();
                 if (lastFixWall > 0 && wall - lastFixWall > 10 * 60000L) carStarted("gps");
                 lastFixWall = wall;
+                if (l.hasSpeed() && l.getSpeed() > 3f) {   // ماشية (> 11 كم/س)
+                    long lm = prefs.getLong("last_move", 0);
+                    if (lm > 0 && wall - lm > greetGap()) carStarted("movimiento");
+                    if (wall - lm > 30000) prefs.edit().putLong("last_move", wall).apply();
+                }
                 Extras.tripStep(prefs, l); safetyStep(l); radarStep(l, l.hasSpeed() ? l.getSpeed() * 3.6f : 0);
             } catch (Throwable ignored) { }
             try { odoStep(l); } catch (Throwable ignored) { }
@@ -4963,6 +4968,9 @@ public class Main extends Activity {
 
     private Main this_() { return this; }
     private static boolean greetedProcess;
+
+    /** Pausa mínima entre saludos (Ajustes; por defecto 10 min). */
+    private long greetGap() { return prefs.getInt("greet_gap", 10) * 60000L; }
     private long lastFixWall, watchWall, watchUp;
 
     /**
@@ -4981,8 +4989,9 @@ public class Main extends Activity {
     private void carStarted(final String why) {
         if (!extrasOn()) return;
         final long t0 = System.currentTimeMillis();
-        if (t0 - prefs.getLong("greet_last", 0) < 15 * 60000L) return;
-        String whyAr = "arranque".equals(why) ? "الشاشة اشتغلت" : "pantalla".equals(why) ? "الشاشة نوّرت" : "gps".equals(why) ? "الـ GPS رجع بعد غياب" : "الشاشة صحيت من النوم";
+        if (t0 - prefs.getLong("greet_last", 0) < greetGap()) return;
+        String whyAr = "arranque".equals(why) ? "الشاشة اشتغلت" : "pantalla".equals(why) ? "الشاشة نوّرت" : "gps".equals(why) ? "الـ GPS رجع بعد غياب"
+            : "movimiento".equals(why) ? "العربية اتحركت بعد وقفة" : "الشاشة صحيت من النوم";
         prefs.edit().putString("greet_why", whyAr + " · " + new java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.US).format(new Date(t0))).apply();
         android.util.Log.i("ElsadekVoz", "arranque detectado: " + why);
         try { refreshWeatherNow(); } catch (Throwable ignored) { }
@@ -4996,7 +5005,7 @@ public class Main extends Activity {
     private void greet(boolean force) {
         try {
             long now = System.currentTimeMillis();
-            if (!force && (!prefs.getBoolean("greet_on", true) || now - prefs.getLong("greet_last", 0) < 15 * 60000L)) return;
+            if (!force && (!prefs.getBoolean("greet_on", true) || now - prefs.getLong("greet_last", 0) < greetGap())) return;
             Calendar c = Calendar.getInstance();
             int hr = c.get(Calendar.HOUR_OF_DAY), mi = c.get(Calendar.MINUTE);
             String day = Extras.day(now);
@@ -7191,6 +7200,9 @@ public class Main extends Activity {
             LinearLayout va = section(body, "Asistente de voz");
             toggle(va, "Saludo al encender el carro", "Hora, clima, próximo adhan, recordatorios y dua del vehículo", prefs.getBoolean("greet_on", true), new IntCb() { public void on(int i) {
                 prefs.edit().putBoolean("greet_on", i == 1).apply(); showSettings(settingsCat); }});
+            int gg = prefs.getInt("greet_gap", 10);
+            segmented(va, "Saludar después de una parada de", null, new String[]{"5 min", "10 min", "20 min", "1 h"}, gg <= 5 ? 0 : gg <= 10 ? 1 : gg <= 20 ? 2 : 3, new IntCb() { public void on(int i) {
+                prefs.edit().putInt("greet_gap", i == 0 ? 5 : i == 1 ? 10 : i == 2 ? 20 : 60).apply(); showSettings(settingsCat); }});
             String dm2 = prefs.getString("dua_mode", "daily");
             segmented(va, "Dua del vehículo", null, new String[]{"No", "Una vez al día", "Cada vez"}, "off".equals(dm2) ? 0 : "always".equals(dm2) ? 2 : 1, new IntCb() { public void on(int i) {
                 prefs.edit().putString("dua_mode", i == 0 ? "off" : i == 2 ? "always" : "daily").apply(); showSettings(settingsCat); }});
