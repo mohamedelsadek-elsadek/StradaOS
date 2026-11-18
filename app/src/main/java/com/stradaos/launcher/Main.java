@@ -7342,8 +7342,8 @@ public class Main extends Activity {
                 }});
             }
         }
-        LinearLayout l3 = section(body, "Estilo 3D");
-        toggle(l3, "Tarjetas y botones en 3D", "Relieve, brillo y sombra", look3d, new IntCb() { public void on(int i) {
+        LinearLayout s3d = section(body, "Estilo 3D");
+        toggle(s3d, "Tarjetas y botones en 3D", "Relieve, brillo y sombra", look3d, new IntCb() { public void on(int i) {
             prefs.edit().putBoolean("look3d", i == 1).apply(); applyTheme(); rebuild(); }});
         LinearLayout th = section(body, "Temas");
         LinearLayout thr = rowBase(th, "Tema de colores", LIGHT ? "En modo claro se usa el tema claro; los temas son para el modo oscuro" : "Fondo, tarjetas, botones y acento. Después puedes cambiar el acento");
