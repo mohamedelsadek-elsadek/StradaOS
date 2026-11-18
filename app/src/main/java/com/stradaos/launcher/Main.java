@@ -1160,8 +1160,7 @@ public class Main extends Activity {
         // 2.18: ocultar el reproductor (el mapa gana espacio), la velocidad y el servicio (carros sin GPS) y el aceite
         showPlayer = prefs.getBoolean("show_player", true);
         carSpeed = prefs.getBoolean("car_speed", true);
-        oilHome = carSpeed && prefs.getBoolean("oil_home", true)
-            && !(extrasOn() && !"photo".equals(prefs.getString("car_slot", "odo")));   // الزيت بقى في مربع العداد
+        oilHome = carSpeed && prefs.getBoolean("oil_home", true);
         // barra lateral: del lado del reproductor (como siempre) o fija a la izquierda / derecha (2.17, Druids07)
         String rs = prefs.getString("rail_side", "auto");
         railLeft = "left".equals(rs) || (!"right".equals(rs) && playerLeft);
@@ -4698,9 +4697,9 @@ public class Main extends Activity {
     // ───────────────────────── العداد مكان صورة العربية (Elsadek Car) ─────────────────────────
     private TextView odoBigTv, odoUnitTv, odoSubTv, odoTitleTv;
     private View odoBar, odoBarBg;
-    private final TextView[] odoTabs = new TextView[3];
+    private final TextView[] odoTabs = new TextView[2];
 
-    /** العداد: الرئيسي / عداد الرحلة / عداد الزيت. ضغطة = اللي بعده، ضغطة طويلة = صورة العربية بدله. */
+    /** العداد: الرئيسي / عداد الرحلة (الزيت في شريطه تحت عداد السرعة). ضغطة = اللي بعده، ضغطة طويلة = صورة العربية بدله. */
     private void buildOdoPanel(FrameLayout card, float x, float y, float w, float hh) {
         FrameLayout p = new FrameLayout(this);
         GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{shade(INNER, -0.25f), shade(INNER, 0.06f)});
@@ -4710,8 +4709,8 @@ public class Main extends Activity {
         place(card, p, x, y, w, hh);
         LinearLayout tabs = new LinearLayout(this);
         tabs.setGravity(Gravity.CENTER);
-        String[] tn = {"العداد", "الرحلة", "الزيت"};
-        for (int i = 0; i < 3; i++) {
+        String[] tn = {"العداد", "الرحلة"};
+        for (int i = 0; i < 2; i++) {
             odoTabs[i] = tv(tn[i], 11, MUTED, true);
             odoTabs[i].setPadding((int) (9 * s), (int) (3 * s), (int) (9 * s), (int) (3 * s));
             final int k = i;
@@ -4749,7 +4748,7 @@ public class Main extends Activity {
         odoSubTv.setGravity(Gravity.CENTER);
         place(p, odoSubTv, 0, hh - 22, w, 17);
         p.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
-            prefs.edit().putInt("odo_view", (prefs.getInt("odo_view", 0) + 1) % 3).apply(); updateOdoPanel(); } });
+            prefs.edit().putInt("odo_view", (prefs.getInt("odo_view", 0) + 1) % 2).apply(); updateOdoPanel(); } });
         p.setOnLongClickListener(new View.OnLongClickListener() { public boolean onLongClick(View v) {
             new TB(Main.this, dlg()).setTitle("Este cuadro")
                 .setItems(new String[]{I18n.t("Mostrar la foto del vehículo"), I18n.t("Corregir el odómetro")}, new DialogInterface.OnClickListener() { public void onClick(DialogInterface d, int w2) {
@@ -4773,8 +4772,8 @@ public class Main extends Activity {
 
     private void updateOdoPanel() {
         if (odoBigTv == null) return;
-        int v = prefs.getInt("odo_view", 0);
-        for (int i = 0; i < 3; i++) {
+        int v = prefs.getInt("odo_view", 0) == 1 ? 1 : 0;
+        for (int i = 0; i < 2; i++) {
             odoTabs[i].setTextColor(i == v ? Color.WHITE : MUTED);
             odoTabs[i].setBackground(i == v ? round(RED, 10) : null);
         }
