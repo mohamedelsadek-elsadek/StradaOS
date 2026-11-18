@@ -217,6 +217,7 @@ final class Extras {
                     .put("trip_km", Math.round(tripKm(p) * 100) / 100.0).put("trip_min", tripMin(p))
                     .put("car", p.getString("car_name", "")).put("ver", Updates.currentVersion(c)).put("u", t);
                 for (String k : new String[]{"doc_car", "doc_driver", "doc_ins"}) if (p.contains(k)) st.put(k, p.getString(k, ""));
+                if (p.contains("docs_extra")) st.put("docs_extra", new org.json.JSONArray(p.getString("docs_extra", "[]")));
                 String aq = authQ(p);
                 // مكان الركنة: بيتبعت بس والعربية داخلة بحسابها (القاعدة محمية)
                 if (aq.length() > 0 && p.contains("park_lat"))
