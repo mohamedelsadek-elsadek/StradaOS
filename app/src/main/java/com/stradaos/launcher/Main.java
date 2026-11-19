@@ -1777,6 +1777,13 @@ public class Main extends Activity {
         return I18n.integer(Math.round(toUnit(km))) + " " + unit();
     }
 
+    /** العربية وقفت: مكان الركنة يتسجل ويتبعت لـ «سجل العربية» على طول. */
+    private final Runnable parkCheck = new Runnable() { public void run() {
+        try {
+            if (extrasOn() && Extras.parkNow(prefs)) Extras.sync(Main.this, prefs, getString(R.string.sync_db));
+        } catch (Throwable ignored) { }
+    }};
+
     /** Distancia medida por el GPS (también con StradaOS detrás de otras apps). */
     private final LocationListener odoListener = new LocationListener() {
         public void onLocationChanged(Location l) {
@@ -1790,7 +1797,9 @@ public class Main extends Activity {
                     if (lm > 0 && wall - lm > greetGap()) carStarted("movimiento");
                     if (wall - lm > 30000) prefs.edit().putLong("last_move", wall).apply();
                 }
-                Extras.tripStep(prefs, l); safetyStep(l); radarStep(l, l.hasSpeed() ? l.getSpeed() * 3.6f : 0);
+                Extras.tripStep(prefs, l); Extras.posStep(prefs, l); safetyStep(l); radarStep(l, l.hasSpeed() ? l.getSpeed() * 3.6f : 0);
+                h.removeCallbacks(parkCheck);
+                h.postDelayed(parkCheck, 70000);   // دقيقة من غير قراية جديدة (الـ GPS بيسكت والعربية واقفة) = ركنت
                 if (idleBefore && Extras.tripStartMs(prefs) > 0) {   // رحلة جديدة بدأت (بعد وقفة 20 دقيقة): أضمن علامة
                     Extras.diag(prefs, "رحلة جديدة بدأت");
                     carStarted("rihla");
@@ -8611,7 +8620,11 @@ public class Main extends Activity {
     private long screenOffAt;
     private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
         public void onReceive(Context c, Intent i) {
-            if (Intent.ACTION_SCREEN_OFF.equals(i.getAction())) { screenOffAt = SystemClock.elapsedRealtime(); return; }
+            if (Intent.ACTION_SCREEN_OFF.equals(i.getAction())) {
+                screenOffAt = SystemClock.elapsedRealtime();
+                h.removeCallbacks(parkCheck); parkCheck.run();   // العربية اتطفت: مكان الركنة دلوقتي
+                return;
+            }
             if (screenOffAt > 0 && SystemClock.elapsedRealtime() - screenOffAt > 5 * 60000L && hasWindowFocus()) runBootApp(1500);
             if (screenOffAt > 0 && SystemClock.elapsedRealtime() - screenOffAt > 10 * 60000L && extrasOn()) carStarted("pantalla");
             screenOffAt = 0;

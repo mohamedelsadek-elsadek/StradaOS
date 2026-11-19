@@ -106,6 +106,41 @@ final class Extras {
     // Se guarda en prefs: trip_m (metros), trip_s (segundos en movimiento), trip_t (última vez en movimiento)
     // y el anterior en last_trip_m / last_trip_s / last_trip_end.
 
+    // ───────────────────────── مكان الركنة ─────────────────────────
+    // قبل كده كان بيتسجل بس لما العربية تدوّر تاني ومن قراية قديمة، فكان بيبان مكان الركنة اللي قبلها (ممكن كيلومترات).
+    // دلوقتي: آخر قراية GPS دقيقة بتتحفظ على طول، ولما العربية تقف دقيقة أو الشاشة تطفي، بتبقى هي مكان الركنة.
+    private static Location posLast;
+
+    static void posStep(SharedPreferences p, Location l) {
+        if (l == null || (l.hasAccuracy() && l.getAccuracy() > 35)) return;
+        if (l.getLatitude() == 0 && l.getLongitude() == 0) return;
+        Location prev = posLast;
+        // والعربية واقفة: القراية الأدق تكسب (الـ GPS بيتهز كام متر)
+        boolean still = prev != null && prev.distanceTo(l) < 25 && !(l.hasSpeed() && l.getSpeed() > 1.5f);
+        if (still && prev.hasAccuracy() && l.hasAccuracy() && l.getAccuracy() > prev.getAccuracy()
+            && l.getTime() - prev.getTime() < 120000) return;
+        posLast = l;
+        if (prev == null || prev.distanceTo(l) > 10 || l.getTime() - p.getLong("pos_t", 0) > 30000)
+            p.edit().putFloat("pos_lat", (float) l.getLatitude()).putFloat("pos_lon", (float) l.getLongitude())
+                .putFloat("pos_acc", l.hasAccuracy() ? l.getAccuracy() : 0).putLong("pos_t", l.getTime()).apply();
+    }
+
+    /** العربية وقفت (دقيقة من غير حركة، أو الشاشة طفت): آخر مكان دقيق يبقى مكان الركنة. true لو اتغير. */
+    static boolean parkNow(SharedPreferences p) {
+        double lat, lon; float acc; long t;
+        if (posLast != null) { lat = posLast.getLatitude(); lon = posLast.getLongitude(); acc = posLast.hasAccuracy() ? posLast.getAccuracy() : 0; t = posLast.getTime(); }
+        else if (p.contains("pos_lat")) { lat = p.getFloat("pos_lat", 0); lon = p.getFloat("pos_lon", 0); acc = p.getFloat("pos_acc", 0); t = p.getLong("pos_t", 0); }
+        else return false;
+        if (p.contains("park_lat")) {
+            float[] d = new float[1];
+            Location.distanceBetween(p.getFloat("park_lat", 0), p.getFloat("park_lon", 0), lat, lon, d);
+            if (d[0] < 15) return false;
+        }
+        p.edit().putFloat("park_lat", (float) lat).putFloat("park_lon", (float) lon).putFloat("park_acc", acc)
+            .putLong("park_t", t > 0 ? t : System.currentTimeMillis()).putLong("sync_state_at", 0).apply();   // يتبعت على طول
+        return true;
+    }
+
     static final long TRIP_GAP = 20 * 60 * 1000L;
     private static Location tripPrev;
     private static long tripSaved;
@@ -151,7 +186,6 @@ final class Extras {
         long secs = p.getLong("trip_s", 0), start = p.getLong("trip_start", 0);
         SharedPreferences.Editor e = p.edit().putFloat("trip_m", 0).putLong("trip_s", 0).putLong("trip_t", 0).putLong("trip_start", 0);
         liveStart = 0;
-        if (p.contains("last_lat")) e.putFloat("park_lat", p.getFloat("last_lat", 0)).putFloat("park_lon", p.getFloat("last_lon", 0)).putLong("park_t", last);
         if (m >= 300) {
             e.putFloat("last_trip_m", m).putLong("last_trip_s", secs).putLong("last_trip_end", last);
             try {
@@ -225,7 +259,8 @@ final class Extras {
                 // مكان الركنة: بيتبعت بس والعربية داخلة بحسابها (القاعدة محمية)
                 if (aq.length() > 0 && p.contains("park_lat"))
                     st.put("parked", new org.json.JSONObject().put("lat", Math.round(p.getFloat("park_lat", 0) * 1e5) / 1e5)
-                        .put("lon", Math.round(p.getFloat("park_lon", 0) * 1e5) / 1e5).put("t", p.getLong("park_t", 0)));
+                        .put("lon", Math.round(p.getFloat("park_lon", 0) * 1e5) / 1e5).put("t", p.getLong("park_t", 0))
+                        .put("acc", Math.round(p.getFloat("park_acc", 0))));
                 put(root + "/state.json" + aq, st.toString());
                 p.edit().putLong("sync_state_at", t).putLong("sync_ok_at", t).apply();
                 // ajustes que manda Mohamed (o Claude) desde sus programas: car_log/config, se aplica una vez por versión «u»
