@@ -98,4 +98,5 @@ adb shell am stack list | grep -E "taskId=.*(chrome|settings)" > capturas/dividi
 { adb logcat -d | grep -E "ElsadekSplit" | tail -3; adb shell am stack list; } > capturas/dividida.txt 2>&1
 adb logcat -d | grep -E "FATAL|AndroidRuntime" | tail -60 > capturas/errores.txt
 adb shell dumpsys package $P | grep -E "versionName|firstInstall" > capturas/paquete.txt
+adb shell dumpsys activity services $P | grep -E "ServiceRecord|isForeground" > capturas/servicio.txt
 cat capturas/errores.txt
