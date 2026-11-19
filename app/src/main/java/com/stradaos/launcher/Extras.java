@@ -150,6 +150,7 @@ final class Extras {
     static void tripStep(SharedPreferences p, Location l) {
         if (l == null || (l.hasAccuracy() && l.getAccuracy() > 40)) return;
         long now = System.currentTimeMillis();
+        if (now < 1767225600000L) return;   // reloj sin poner al encender (salió 4 de julio): se espera la hora buena
         tripRollover(p, now);
         if (tripPrev == null) { tripPrev = l; return; }
         float d = tripPrev.distanceTo(l);

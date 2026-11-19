@@ -1839,6 +1839,7 @@ public class Main extends Activity {
     /** Solo escucha el GPS en segundo plano si el recordatorio está activo. */
     private void startOdo() {
         boolean want = odoNeeded();
+        if (want && extrasOn()) KeepAlive.start(this); else KeepAlive.stop(this);   // GPS completo con otra app delante
         if (want == odoRunning) return;
         try {
             if (want) lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 10, odoListener);
@@ -4900,17 +4901,26 @@ public class Main extends Activity {
         boolean internal = "internal".equals(prefs.getString("nav_app", null));
         if (nav == null && !internal) return false;
         if (nav != null && nav.getComponent() != null && pkg.equals(nav.getComponent().getPackageName())) return false;
-        // el área útil: sin la barra de estado de arriba ni la de navegación (si no, las ventanas quedan cortadas abajo)
-        android.graphics.Point sz = new android.graphics.Point();
+        // el área útil: toda la pantalla menos las barras del sistema (estables: cuentan aunque estén escondidas)
+        android.graphics.Point real = new android.graphics.Point(), sz = new android.graphics.Point();
+        getWindowManager().getDefaultDisplay().getRealSize(real);
         getWindowManager().getDefaultDisplay().getSize(sz);
-        int W = sz.x, H = sz.y, top = 0;
-        if (W <= H) return false;   // pantalla vertical: no se divide
-        int sb = getResources().getIdentifier("status_bar_height", "dimen", "android");
-        if (sb > 0) top = getResources().getDimensionPixelSize(sb);
-        int media = W * prefs.getInt("split_ratio", 50) / 100;
+        int L = 0, T = 0, R = real.x, B = real.y;
+        android.view.WindowInsets wi = android.os.Build.VERSION.SDK_INT >= 23 ? getWindow().getDecorView().getRootWindowInsets() : null;
+        if (wi != null) {
+            L = wi.getStableInsetLeft(); T = wi.getStableInsetTop(); R = real.x - wi.getStableInsetRight(); B = real.y - wi.getStableInsetBottom();
+        } else {
+            int sb = getResources().getIdentifier("status_bar_height", "dimen", "android");
+            if (sb > 0) T = getResources().getDimensionPixelSize(sb);
+            R = sz.x; B = sz.y;
+        }
+        if (R - L <= B - T) return false;   // pantalla vertical: no se divide
+        String dg = "مقاس الشاشة " + real.x + "x" + real.y + " · المفيد " + sz.x + "x" + sz.y + " · المساحة " + L + "," + T + "-" + R + "," + B;
+        if (!dg.equals(prefs.getString("split_dg", ""))) { prefs.edit().putString("split_dg", dg).apply(); Extras.diag(prefs, dg); }
+        int media = (R - L) * prefs.getInt("split_ratio", 50) / 100;
         boolean navLeft = !"right".equals(prefs.getString("split_side", "left"));
-        android.graphics.Rect navR = navLeft ? new android.graphics.Rect(0, top, W - media, H) : new android.graphics.Rect(media, top, W, H);
-        android.graphics.Rect medR = navLeft ? new android.graphics.Rect(W - media, top, W, H) : new android.graphics.Rect(0, top, media, H);
+        android.graphics.Rect navR = navLeft ? new android.graphics.Rect(L, T, R - media, B) : new android.graphics.Rect(L + media, T, R, B);
+        android.graphics.Rect medR = navLeft ? new android.graphics.Rect(R - media, T, R, B) : new android.graphics.Rect(L, T, L + media, B);
         final boolean audio = SPLIT_AUDIO.contains(pkg);
         if (!freeformOk(this)) {
             if (!prefs.getBoolean("split_help", false)) {
@@ -5628,11 +5638,16 @@ public class Main extends Activity {
      * Aviso de velocidad: límite de ciudad o de vía rápida (motorway/trunk de OpenStreetMap; su maxspeed si lo tiene).
      * Sin saber la vía (sin internet) se usa el de vía rápida. 3 lecturas seguidas por encima; se repite a los 60 s.
      */
+    private int roadLast = -1;
+    private long roadLastAt = -3600000L;
+
     private void safetyStep(Location l) {
         int hwLim = prefs.getInt("speed_limit", 120), cityLim = prefs.getInt("speed_city", 60);
         float kmh = l.hasSpeed() ? l.getSpeed() * 3.6f : 0;
         long now = SystemClock.elapsedRealtime();
         int road = (hwLim > 0 || cityLim > 0) && (l.getLatitude() != 0 || l.getLongitude() != 0) ? Roads.at(l.getLatitude(), l.getLongitude()) : -1;
+        // من غير نت أو الخدمة واقعة: آخر نوع طريق اتعرف في آخر 10 دقايق، وإلا حد الطريق السريع
+        if (road >= 0) { roadLast = road; roadLastAt = now; } else if (now - roadLastAt < 10 * 60000L) road = roadLast;
         int lim = road < 0 ? hwLim : road == 0 ? cityLim : road > 1 ? road : hwLim;
         if (lim > 0 && kmh > lim) {
             if (++overCount >= 3 && now - speedWarnAt > 60000) {
@@ -5640,6 +5655,7 @@ public class Main extends Activity {
                 Voice.init(this);
                 Voice.say("انتبه، السرعة " + Math.round(kmh) + ". هدّي شوية، الحد هنا " + lim + ".");
                 android.util.Log.i("ElsadekVoz", "velocidad " + Math.round(kmh) + " limite " + lim + " via " + road);
+                Extras.diag(prefs, "تنبيه سرعة " + Math.round(kmh) + " (الحد " + lim + (road < 0 ? "، نوع الطريق مش معروف" : road == 0 ? "، جوه البلد" : "") + ")");
             }
         } else if (lim == 0 || kmh < lim - 5) overCount = 0;
         if (prefs.getBoolean("fatigue_on", true) && Extras.tripMin(prefs) >= 120 && now - fatigueWarnAt > 60 * 60000L && kmh > 20) {
@@ -7670,6 +7686,22 @@ public class Main extends Activity {
 
     /** Pantalla de inicio: qué tarjetas se ven, el mapa y la barra de arriba. */
     private void catHome(LinearLayout body) {
+        if (extrasOn()) {   // Elsadek Car: primero, para encontrarlo fácil
+            LinearLayout sp = section(body, "Pantalla dividida");
+            toggle(sp, "Navegador al lado de la música", "Al abrir Anghami, YouTube… el navegador se abre de tu lado y la app del otro lado",
+                prefs.getBoolean("split_on", true), new IntCb() { public void on(int i) {
+                prefs.edit().putBoolean("split_on", i == 1).apply(); showSettings(settingsCat); }});
+            int sr = prefs.getInt("split_ratio", 50);
+            segmented(sp, "Espacio de la app de música o video", null, new String[]{"Un tercio", "La mitad", "Dos tercios"}, sr <= 34 ? 0 : sr >= 66 ? 2 : 1, new IntCb() { public void on(int i) {
+                prefs.edit().putInt("split_ratio", i == 0 ? 33 : i == 2 ? 67 : 50).apply(); showSettings(settingsCat); }});
+            segmented(sp, "El navegador va", null, new String[]{"A la izquierda (conductor)", "A la derecha"}, "right".equals(prefs.getString("split_side", "left")) ? 1 : 0, new IntCb() { public void on(int i) {
+                prefs.edit().putString("split_side", i == 1 ? "right" : "left").apply(); showSettings(settingsCat); }});
+            row(sp, "Apps que dividen la pantalla", null, null, new Runnable() { public void run() { pickSplitApps(); } });
+            row(sp, "App de navegación preferida", null, autoLabel("nav_app", NAV_PKGS, "Toca para elegir"), new Runnable() { public void run() { pickFor("nav_app", "Navegación"); } });
+            row(sp, freeformOk(this) ? "La pantalla permite dividirse" : "La pantalla todavía no permite dividirse",
+                freeformOk(this) ? null : "Ajustes de Android → Opciones de desarrollador → «Habilitar ventanas de forma libre» y «Forzar actividades redimensionables», y reinicia", null, null);
+            row(sp, "Probar ahora", null, null, new Runnable() { public void run() { splitTest(); } });
+        }
         if (boxW > 0 && canVertical(boxW, boxH)) {
             // Solo en pantallas casi cuadradas o verticales (en las horizontales no tiene sentido).
             final String[] lk = {"auto", "horizontal", "vertical"};
@@ -7768,20 +7800,6 @@ public class Main extends Activity {
             if (gw.length() > 0) row(va, "Último saludo automático", gw, null, null);
             row(va, "Escuchar el saludo ahora", Voice.arabicOk() ? null : "Si no se oye: Ajustes de Android → Texto a voz → instala la voz árabe", null,
                 new Runnable() { public void run() { greet(true); } });
-            LinearLayout sp = section(body, "Pantalla dividida");
-            toggle(sp, "Navegador al lado de la música", "Al abrir Anghami, YouTube… el navegador se abre de tu lado y la app del otro lado",
-                prefs.getBoolean("split_on", true), new IntCb() { public void on(int i) {
-                prefs.edit().putBoolean("split_on", i == 1).apply(); showSettings(settingsCat); }});
-            int sr = prefs.getInt("split_ratio", 50);
-            segmented(sp, "Espacio de la app de música o video", null, new String[]{"Un tercio", "La mitad", "Dos tercios"}, sr <= 34 ? 0 : sr >= 66 ? 2 : 1, new IntCb() { public void on(int i) {
-                prefs.edit().putInt("split_ratio", i == 0 ? 33 : i == 2 ? 67 : 50).apply(); showSettings(settingsCat); }});
-            segmented(sp, "El navegador va", null, new String[]{"A la izquierda (conductor)", "A la derecha"}, "right".equals(prefs.getString("split_side", "left")) ? 1 : 0, new IntCb() { public void on(int i) {
-                prefs.edit().putString("split_side", i == 1 ? "right" : "left").apply(); showSettings(settingsCat); }});
-            row(sp, "Apps que dividen la pantalla", null, null, new Runnable() { public void run() { pickSplitApps(); } });
-            row(sp, "App de navegación preferida", null, autoLabel("nav_app", NAV_PKGS, "Toca para elegir"), new Runnable() { public void run() { pickFor("nav_app", "Navegación"); } });
-            row(sp, freeformOk(this) ? "La pantalla permite dividirse" : "La pantalla todavía no permite dividirse",
-                freeformOk(this) ? null : "Ajustes de Android → Opciones de desarrollador → «Habilitar ventanas de forma libre» y «Forzar actividades redimensionables», y reinicia", null, null);
-            row(sp, "Probar ahora", null, null, new Runnable() { public void run() { splitTest(); } });
         }
         toggle(top, "Horario de oración y resumen del viaje", "Arriba: el próximo adhan y lo recorrido en este viaje. Toca para ver el horario completo",
             extrasOn(), new IntCb() { public void on(int i) {
