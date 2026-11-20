@@ -1,0 +1,18 @@
+11-21 00:04:13.580  3544  3544 I ElsadekVoz: arranque detectado: arranque
+11-21 00:04:23.688  3544  3544 I ElsadekVoz: مساء الخير يا محمد. الساعة 12 و4 دقايق بالليل. النهارده السبت 21 نوفمبر، 11 جمادى الآخرة. الجو صافي، ودرجة الحرارة دلوقتي 19، والعظمى النهارده 29. أذان الفجر الساعة 4 و55 دقيقة، بعد 4 ساعات و51 دقيقة. الوقت متأخر، لو حسيت بنعاس اركن وريّح شوية. متنساش حزام الأمان.
+11-21 00:04:51.968  3544  3544 I ElsadekVoz: مساء الخير يا محمد. الساعة 12 و4 دقايق بالليل. النهارده السبت 21 نوفمبر، 11 جمادى الآخرة. الجو صافي، ودرجة الحرارة دلوقتي 19، والعظمى النهارده 29. أذان الفجر الساعة 4 و55 دقيقة، بعد 4 ساعات و51 دقيقة. الوقت متأخر، لو حسيت بنعاس اركن وريّح شوية. متنساش حزام الأمان.
+11-21 00:05:00.093  3544  3544 I ElsadekVoz: velocidad 130 limite 120 via -1
+11-21 00:05:04.164  3544  3544 I ElsadekVoz: mantenimiento ["تيل الفرامل عدّى معاده، بقالك 31000 كيلو من آخر مرة.","البطارية عدّى معاده، بقالك 31 شهور من آخر مرة."]
+11-21 00:05:08.595  3544  5984 W ElsadekVoz: overpass https://overpass-api.de/api/interpreter: java.lang.Exception: HTTP 502
+11-21 00:05:27.231  3544  3544 I ElsadekVoz: via 64 vias, aqui=-1, lejos=0
+11-21 00:05:34.901  3544  5984 W ElsadekVoz: overpass https://overpass.private.coffee/api/interpreter: java.net.SocketTimeoutException: timeout
+11-21 00:06:00.612  3544  5984 W ElsadekVoz: overpass https://maps.mail.ru/osm/tools/overpass/api/interpreter: java.net.SocketTimeoutException: timeout
+11-21 00:06:00.612  3544  5984 W ElsadekVoz: overpass: java.lang.Exception: java.net.SocketTimeoutException: timeout
+11-21 00:26:33.519  3544  3544 I ElsadekVoz: arranque detectado: despertar
+11-21 00:26:39.530  3544  3544 I ElsadekVoz: مساء الخير يا محمد. الساعة 12 و26 دقيقة بالليل. الجو صافي، ودرجة الحرارة دلوقتي 19، والعظمى النهارده 29. أذان الفجر الساعة 4 و55 دقيقة، بعد 4 ساعات و29 دقيقة. الوقت متأخر، لو حسيت بنعاس اركن وريّح شوية. متنساش حزام الأمان.
+11-21 00:27:07.687  3544  3544 I ElsadekVoz: comando: الساعة كام
+11-21 00:27:13.688  3544  3544 I ElsadekVoz: comando: شغل إذاعة القرآن الكريم
+11-21 00:27:38.740  3544  3544 I ElsadekVoz: comando: وقف الراديو
+11-21 00:27:42.742  3544  3544 I ElsadekVoz: comando: افتح Chrome
+11-21 00:27:54.190  3544  7443 I ElsadekVoz: radio lista 53, primera: إذاعة القرآن الكريم من القاهرة http://n12.radiojar.com/8s5u5tpdtwzuv?listening-from-radio-garden=1620219571863&rj-tok=AAABeTyl2zYARSWbLVnrEOlqGw&rj-ttl=5
+11-21 00:28:17.943  3544  3544 I ElsadekVoz: radio estado 2 error 

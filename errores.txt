@@ -1,0 +1,9 @@
+11-20 22:10:10.639   274   274 D AndroidRuntime: >>>>>> START com.android.internal.os.ZygoteInit uid 0 <<<<<<
+11-20 22:10:10.642   274   274 I AndroidRuntime: Using default boot image
+11-20 22:10:10.642   274   274 I AndroidRuntime: Leaving lock profiling enabled
+11-20 22:10:15.530   685   685 I AndroidRuntime: VM exiting with result code 0, cleanup skipped.
+11-20 22:10:59.483  3302  3302 I AndroidRuntime: VM exiting with result code 0, cleanup skipped.
+11-20 22:11:00.078  4373  4373 I AndroidRuntime: VM exiting with result code 0, cleanup skipped.
+11-20 22:11:00.205  4393  4393 I AndroidRuntime: VM exiting with result code 0, cleanup skipped.
+11-20 22:11:00.388  4414  4414 I AndroidRuntime: VM exiting with result code 0, cleanup skipped.
+11-20 22:11:00.665  4431  4431 I AndroidRuntime: VM exiting with result code 0, cleanup skipped.

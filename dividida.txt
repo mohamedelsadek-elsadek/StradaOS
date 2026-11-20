@@ -1,0 +1,27 @@
++ adb logcat -d
++ grep -E ElsadekSplit
++ tail -3
+11-20 22:10:51.697  1452  1452 I ElsadekSplit: freeform=true
+11-20 22:11:19.674  1452  1452 I ElsadekSplit: freeform=true
++ adb shell am stack list
+RootTask id=17 bounds=[0,24][858,660] displayId=0 userId=0
+ configuration={1.0 310mcc260mnc [en_US] ldltr sw636dp w858dp h636dp 160dpi lrg land finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 24 - 858, 660) mAppBounds=Rect(0, 24 - 858, 660) mMaxBounds=Rect(0, 0 - 1280, 720) mDisplayRotation=ROTATION_0 mWindowingMode=freeform mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} s.38 fontWeightAdjustment=0}
+  taskId=17: com.android.settings/com.android.settings.Settings bounds=[0,24][858,660] userId=0 visible=true topActivity=ComponentInfo{com.android.settings/com.android.settings.Settings$NetworkDashboardActivity}
+
+RootTask id=18 bounds=[858,24][1280,660] displayId=0 userId=0
+ configuration={1.0 310mcc260mnc [en_US] ldltr sw422dp w422dp h636dp 160dpi nrml port finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(858, 24 - 1280, 660) mAppBounds=Rect(858, 24 - 1280, 660) mMaxBounds=Rect(0, 0 - 1280, 720) mDisplayRotation=ROTATION_0 mWindowingMode=freeform mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} s.38 fontWeightAdjustment=0}
+  taskId=18: com.android.chrome/com.google.android.apps.chrome.Main bounds=[858,24][1280,660] userId=0 visible=true topActivity=ComponentInfo{com.android.chrome/org.chromium.chrome.browser.firstrun.FirstRunActivity}
+
+RootTask id=13 bounds=[0,0][1280,720] displayId=0 userId=0
+ configuration={1.0 310mcc260mnc [en_US] ldltr sw720dp w1280dp h636dp 160dpi lrg long land finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 1280, 720) mAppBounds=Rect(0, 0 - 1280, 660) mMaxBounds=Rect(0, 0 - 1280, 720) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} s.38 fontWeightAdjustment=0}
+  taskId=13: com.elsadek.car.debug/com.stradaos.launcher.Main bounds=[0,0][1280,720] userId=0 visible=true topActivity=ComponentInfo{com.elsadek.car.debug/com.stradaos.launcher.Main}
+
+RootTask id=1 bounds=[0,0][1280,720] displayId=0 userId=0
+ configuration={1.0 310mcc260mnc [en_US] ldltr sw720dp w1280dp h636dp 160dpi lrg long land finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 1280, 720) mAppBounds=Rect(0, 0 - 1280, 660) mMaxBounds=Rect(0, 0 - 1280, 720) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=home mAlwaysOnTop=undefined mRotation=ROTATION_0} s.38 fontWeightAdjustment=0}
+  taskId=12: com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity bounds=[0,0][1280,720] userId=0 visible=false topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}
+
+RootTask id=3 bounds=[0,0][1280,720] displayId=0 userId=0
+ configuration={1.0 310mcc260mnc [en_US] ldltr sw720dp w1280dp h636dp 160dpi lrg long land finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 1280, 720) mAppBounds=Rect(0, 0 - 1280, 660) mMaxBounds=Rect(0, 0 - 1280, 720) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.38 fontWeightAdjustment=0}
+  taskId=4: unknown bounds=[0,0][1280,720] userId=0 visible=false
+  taskId=5: unknown bounds=[1280,0][1920,720] userId=0 visible=false
+

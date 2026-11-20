@@ -1,0 +1,3 @@
+  * ServiceRecord{8a19cc9 u0 com.elsadek.car.debug/com.stradaos.launcher.FrameKeys}
+  * ServiceRecord{2044ac8 u0 com.elsadek.car.debug/com.stradaos.launcher.KeepAlive}
+    isForeground=true foregroundId=78 foregroundNoti=Notification(channel=elsadek_trip shortcut=null contentView=null vibrate=null sound=null defaults=0x0 flags=0x62 color=0x00000000 vis=PRIVATE)

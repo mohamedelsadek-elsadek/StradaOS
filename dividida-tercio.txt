@@ -1,0 +1,2 @@
+  taskId=17: com.android.settings/com.android.settings.Settings bounds=[0,24][858,660] userId=0 visible=true topActivity=ComponentInfo{com.android.settings/com.android.settings.Settings$NetworkDashboardActivity}
+  taskId=18: com.android.chrome/com.google.android.apps.chrome.Main bounds=[858,24][1280,660] userId=0 visible=true topActivity=ComponentInfo{com.android.chrome/org.chromium.chrome.browser.firstrun.FirstRunActivity}

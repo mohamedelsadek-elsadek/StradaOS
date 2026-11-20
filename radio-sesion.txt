@@ -1,0 +1,6 @@
+  Media button session is com.elsadek.car.debug/ElsadekRadio (userId=0)
+    ElsadekRadio com.elsadek.car.debug/ElsadekRadio (userId=0)
+      state=PlaybackState {state=3, position=-1, buffered position=0, speed=1.0, updated=266311, actions=567, custom actions=[], active item id=-1, error=null}
+      state=PlaybackState {state=7, position=0, buffered position=0, speed=0.0, updated=28503, actions=0, custom actions=[], active item id=-1, error=Bluetooth audio disconnected}
+      state=PlaybackState {state=7, position=0, buffered position=0, speed=0.0, updated=28548, actions=0, custom actions=[], active item id=-1, error=Bluetooth audio disconnected}
+      state=PlaybackState {state=0, position=0, buffered position=0, speed=1.0, updated=31008, actions=8192, custom actions=[], active item id=-1, error=null}

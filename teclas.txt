@@ -1,0 +1,15 @@
++ adb shell dumpsys accessibility
++ grep -iE 'FrameKeys|Bound services|Enabled services'
++ head -6
+     Bound services:{Service[label=مفاتيح الفريم والطارة, feedbackType[FEEDBACK_GENERIC], capabilities=8, eventTypes=TYPE_ANNOUNCEMENT, notificationTimeout=0, requestA11yBtn=false]}
+     Enabled services:{{com.elsadek.car.debug/com.stradaos.launcher.FrameKeys}}
++ adb logcat -d
++ grep -E ElsadekKeys
++ tail -12
+11-21 00:29:33.491  3544  3544 I ElsadekKeys: servicio conectado
+11-21 00:29:53.726  3544  3544 I ElsadekKeys: inicio 136 0
+11-21 00:29:53.727  3544  3544 I ElsadekKeys: inicio 136 1
++ grep -E 'topResumedActivity|mResumedActivity'
++ adb shell dumpsys activity activities
++ head -3
+    topResumedActivity=ActivityRecord{2f3a12b u0 com.elsadek.car.debug/com.stradaos.launcher.Main} t9}
