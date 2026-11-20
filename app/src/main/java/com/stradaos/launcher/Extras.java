@@ -151,10 +151,12 @@ final class Extras {
         if (l == null || (l.hasAccuracy() && l.getAccuracy() > 40)) return;
         long now = System.currentTimeMillis();
         if (now < 1767225600000L) return;   // reloj sin poner al encender (salió 4 de julio): se espera la hora buena
+        if (gapDrive(p, l, now)) return;
         tripRollover(p, now);
         if (tripPrev == null) { tripPrev = l; return; }
         float d = tripPrev.distanceTo(l);
         float dt = Math.max(1, (l.getTime() - tripPrev.getTime()) / 1000f);
+        if (dt > 120 && d > 500) diag(p, "الـ GPS قطع " + Math.round(dt / 60) + " دقيقة في الرحلة (" + Math.round(d / 100) / 10.0 + " كم)");
         boolean moving = (l.hasSpeed() && l.getSpeed() > 1.5f) || d >= 20;
         if (d < 20 && !moving) return;                 // ruido del GPS con el carro quieto
         if (d / dt > 70) { tripPrev = l; return; }      // salto imposible (> 250 km/h)
@@ -179,19 +181,54 @@ final class Extras {
         pendM = 0; pendS = 0; tripSaved = now;
     }
 
+    /**
+     * الـ GPS قطع والعربية ماشية (أكتر من 20 دقيقة من غير قرايات): من غير ده الرحلة كانت بتتقفل وتضيع المسافة دي.
+     * لو أول قراية بعد القطع بعيدة أكتر من 1 كم وبسرعة معقولة، يبقى العربية كانت ماشية: الرحلة تكمل (أو ترجع تتفتح
+     * لو كانت اتقفلت) وتتحسب المسافة بخط مستقيم (أقل من الحقيقية شوية).
+     */
+    private static boolean gapDrive(SharedPreferences p, Location l, long now) {
+        long last = p.getLong("trip_t", 0), ref = last > 0 ? last : p.getLong("ended_at", 0);
+        if (ref == 0 || now - ref < TRIP_GAP || now - ref > 3 * 3600000L || !p.contains("pos_lat")) return false;
+        float[] d = new float[1];
+        Location.distanceBetween(p.getFloat("pos_lat", 0), p.getFloat("pos_lon", 0), l.getLatitude(), l.getLongitude(), d);
+        double kmh = d[0] / 1000.0 / ((now - ref) / 3600000.0);
+        if (d[0] < 1000 || kmh < 8 || kmh > 200) return false;
+        SharedPreferences.Editor e = p.edit();
+        if (last == 0) {   // الرحلة كانت اتقفلت: ترجع تتفتح بنفس رقمها (المزامنة بتكتب فوقها)
+            String id = p.getString("ended_id", "");
+            e.putFloat("trip_m", p.getFloat("ended_m", 0)).putLong("trip_s", p.getLong("ended_s", 0))
+                .putLong("trip_start", p.getLong("ended_start", 0)).putString("trip_id", id);
+            if (id.length() > 0) try {
+                org.json.JSONArray a = new org.json.JSONArray(p.getString("trip_log", "[]")), out = new org.json.JSONArray();
+                for (int i = 0; i < a.length(); i++) if (!id.equals(a.getJSONObject(i).optString("id"))) out.put(a.get(i));
+                e.putString("trip_log", out.toString());
+            } catch (Throwable ignored) { }
+            liveStart = p.getLong("ended_start", 0);
+        }
+        e.putLong("trip_t", now).putLong("ended_at", 0).apply();
+        pendM += d[0];
+        pendS += (now - ref) / 1000;
+        tripPrev = l;
+        diag(p, "الـ GPS قطع " + Math.round((now - ref) / 60000.0) + " دقيقة والعربية ماشية: اتحسب " + Math.round(d[0] / 100) / 10.0 + " كم");
+        tripFlush(p, now);
+        return true;
+    }
+
     /** Si pasaron 20 min sin moverse, el viaje actual pasa a ser el último. */
     static void tripRollover(SharedPreferences p, long now) {
         long last = p.getLong("trip_t", 0);
         if (last == 0 || now - last < TRIP_GAP || pendM > 0) return;
         float m = p.getFloat("trip_m", 0);
         long secs = p.getLong("trip_s", 0), start = p.getLong("trip_start", 0);
-        SharedPreferences.Editor e = p.edit().putFloat("trip_m", 0).putLong("trip_s", 0).putLong("trip_t", 0).putLong("trip_start", 0);
+        String tid = p.getString("trip_id", "");
+        SharedPreferences.Editor e = p.edit().putFloat("trip_m", 0).putLong("trip_s", 0).putLong("trip_t", 0).putLong("trip_start", 0).remove("trip_id");
         liveStart = 0;
         if (m >= 300) {
             e.putFloat("last_trip_m", m).putLong("last_trip_s", secs).putLong("last_trip_end", last);
+            if (tid.length() == 0) tid = newId();
             try {
                 org.json.JSONObject d = new org.json.JSONObject();
-                d.put("id", newId()).put("t", "trip").put("date", day(start > 0 ? start : last))
+                d.put("id", tid).put("t", "trip").put("date", day(start > 0 ? start : last))
                     .put("start", start > 0 ? start : last - secs * 1000).put("end", last)
                     .put("km", Math.round(m / 10f) / 100.0).put("min", Math.round(secs / 60f))
                     .put("odo", Math.round(p.getFloat("odo_base_km", 0) + p.getFloat("odo_gps_m", 0) / 1000f))
@@ -200,6 +237,8 @@ final class Extras {
                 e.putString("sync_q", append(p.getString("sync_q", "[]"), d, 2000));
             } catch (Throwable ignored) { }
         }
+        e.putLong("ended_at", last).putFloat("ended_m", m).putLong("ended_s", secs).putLong("ended_start", start > 0 ? start : last - secs * 1000)
+            .putString("ended_id", m >= 300 ? tid : "");
         e.apply();
         tripPrev = null;
     }
