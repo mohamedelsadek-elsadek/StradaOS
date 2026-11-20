@@ -17,7 +17,7 @@ public class FrameKeys extends AccessibilityService {
     static volatile KeyCb onTest;
     interface KeyCb { void key(int code); }
 
-    @Override protected void onServiceConnected() { running = true; }
+    @Override protected void onServiceConnected() { running = true; android.util.Log.i("ElsadekKeys", "servicio conectado"); }
     @Override public boolean onUnbind(Intent intent) { running = false; return super.onUnbind(intent); }
     @Override public void onAccessibilityEvent(AccessibilityEvent e) { }
     @Override public void onInterrupt() { }
@@ -33,6 +33,7 @@ public class FrameKeys extends AccessibilityService {
     /** Común al servicio y a la pantalla de inicio. true = la tecla queda usada. */
     static boolean handle(android.content.Context c, SharedPreferences p, KeyEvent e, boolean fromService) {
         int code = e.getKeyCode();
+        android.util.Log.i("ElsadekKeys", (fromService ? "servicio " : "inicio ") + code + " " + e.getAction());
         if (code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_UNKNOWN) return false;
         KeyCb t = onTest;
         if (t != null) {

@@ -5053,7 +5053,13 @@ public class Main extends Activity {
     private void keyTest() {
         final TextView msg = tv("اضغط أي زرار في الفريم أو الطارة…\n\nلو ضغطت ومحصلش حاجة هنا خلال 10 ثواني، يبقى الزرار مش واصل لأندرويد أصلًا، ومحتاج «تعلم مفاتيح اللوحة» من إعدادات المصنع بتاعة الشاشة.", 16, TEXT, false);
         msg.setPadding((int) (20 * s), (int) (16 * s), (int) (20 * s), (int) (8 * s));
+        msg.setSingleLine(false); msg.setMaxLines(12); msg.setEllipsize(null);
         final AlertDialog d = new TB(this, dlg()).setTitle("اختبار الزراير").setView(msg).setNegativeButton("Cerrar", null).create();
+        // الزرار بيروح للشباك المفتوح (مش للشاشة اللي وراه): من غير ده الاختبار مايشوفش حاجة لو خدمة المفاتيح مقفولة
+        d.setOnKeyListener(new DialogInterface.OnKeyListener() { public boolean onKey(DialogInterface x, int code, KeyEvent e) {
+            if (code == KeyEvent.KEYCODE_BACK) return false;
+            try { return FrameKeys.handle(Main.this, prefs, e, false); } catch (Throwable t) { return false; }
+        }});
         FrameKeys.onTest = new FrameKeys.KeyCb() { public void key(final int code) {
             h.post(new Runnable() { public void run() {
                 FrameKeys.onTest = null;

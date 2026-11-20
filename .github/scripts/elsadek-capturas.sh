@@ -84,12 +84,14 @@ adb shell settings put secure accessibility_enabled 1; sleep 3
 adb shell am start -n $A --es prueba tecla:135=radio; sleep 2
 adb shell am start -n com.android.chrome/com.google.android.apps.chrome.Main; sleep 5
 adb shell input keyevent 135; sleep 5
+adb shell dumpsys activity activities | grep -E "topResumedActivity" | head -2 > capturas/teclas-frente.txt
 adb exec-out screencap -p > capturas/13-tecla-radio.png
 adb shell input keyevent KEYCODE_BACK; sleep 2
 adb shell am start -n $A --es prueba teclas; sleep 3
 adb shell input keyevent 136; sleep 3
 adb exec-out screencap -p > capturas/13-tecla-prueba.png
 adb shell input keyevent KEYCODE_BACK; sleep 1
+{ adb shell dumpsys accessibility | grep -iE "FrameKeys|Bound services|Enabled services" | head -6; adb logcat -d | grep -E "ElsadekKeys" | tail -12; adb shell dumpsys activity activities | grep -E "topResumedActivity|mResumedActivity" | head -3; } > capturas/teclas.txt 2>&1
 # pantalla dividida (al final: necesita reiniciar con las ventanas libres activadas)
 adb shell settings put global enable_freeform_support 1
 adb shell settings put global force_resizable_activities 1
