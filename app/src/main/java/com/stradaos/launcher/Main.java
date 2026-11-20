@@ -219,6 +219,7 @@ public class Main extends Activity {
         if (getPackageName().endsWith(".debug") && getIntent() != null && "saltar".equals(getIntent().getStringExtra("prueba")))
             prefs.edit().putBoolean("setup_done", true).apply();
         migrateOrSetup();
+        keyAction(getIntent());
         testHook(getIntent());
         applyTheme();
         applyAccent();
@@ -658,6 +659,7 @@ public class Main extends Activity {
     protected void onNewIntent(Intent i) {
         super.onNewIntent(i);
         closeDrawer();
+        keyAction(i);
         testHook(i);
     }
 
@@ -701,6 +703,8 @@ public class Main extends Activity {
                     android.util.Log.i("ElsadekSplit", "freeform=" + freeformOk(Main.this));
                     splitTest();
                 }
+                else if (v.startsWith("tecla:")) { String[] kv = v.substring(6).split("="); prefs.edit().putString("keymap_" + kv[0], kv.length > 1 ? kv[1] : "").apply(); }
+                else if ("teclas".equals(v)) keyTest();
                 else if (v.startsWith("comando:")) runCommand(v.substring(8));
                 else if ("radio-demo".equals(v)) {   // la emisora egipcia más escuchada, 20 s después se anota cómo va
                     new Thread(new Runnable() { public void run() {
@@ -5002,6 +5006,78 @@ public class Main extends Activity {
         toast("No hay apps de música o video instaladas");
     }
 
+    // ───────────────────────── مفاتيح الفريم والطارة (Elsadek Car) ─────────────────────────
+
+    static final String[] KEY_ACTIONS = {"", "home", "nav", "split", "music", "radio", "voice", "phone", "play", "next", "prev"};
+    static final String[] KEY_ACTION_NAMES = {"ولا حاجة (سيبه للشاشة)", "الشاشة الرئيسية", "الخريطة", "الخريطة + الأغاني مقسومين",
+        "برنامج الأغاني", "راديو الإنترنت", "الأوامر الصوتية 🎤", "التليفون", "تشغيل/إيقاف ⏯", "اللي بعده ⏭", "اللي قبله ⏮"};
+
+    private String keyActionName(String a) {
+        int i = java.util.Arrays.asList(KEY_ACTIONS).indexOf(a);
+        return i >= 0 ? KEY_ACTION_NAMES[i] : a;
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent e) {
+        // مع خدمة المفاتيح شغالة، هي اللي بتشوف الزرار الأول
+        if (extrasOn() && (!FrameKeys.running || FrameKeys.onTest != null)) {
+            try { if (FrameKeys.handle(this, prefs, e, false)) return true; } catch (Throwable ignored) { }
+        }
+        return super.dispatchKeyEvent(e);
+    }
+
+    private void keyAction(Intent i) {
+        final String a = i == null ? null : i.getStringExtra("key_action");
+        if (a == null) return;
+        i.removeExtra("key_action");
+        h.post(new Runnable() { public void run() { runKeyAction(a); } });
+    }
+
+    private void runKeyAction(String a) {
+        try {
+            if ("home".equals(a)) return;   // ده كفاية: Main قدام
+            if ("nav".equals(a)) openNavApp();
+            else if ("split".equals(a)) splitTest();
+            else if ("music".equals(a)) openMusicApp();
+            else if ("radio".equals(a)) showRadio();
+            else if ("voice".equals(a)) listenCommand();
+            else if ("phone".equals(a)) { if (!launchSaved("bt")) toast("اختار برنامج التليفون من زرار البلوتوث"); }
+            else if ("play".equals(a) || "next".equals(a) || "prev".equals(a)) {
+                sendMediaKey("next".equals(a) ? KeyEvent.KEYCODE_MEDIA_NEXT : "prev".equals(a) ? KeyEvent.KEYCODE_MEDIA_PREVIOUS : KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE);
+                moveTaskToBack(true);   // يرجع للبرنامج اللي كان قدام
+            }
+        } catch (Throwable e) { Guard.log("tecla " + a + ": " + e); }
+    }
+
+    /** يستنى أي زرار، ويقول وصل ولا لأ، وبعدين تختار هو يعمل إيه. */
+    private void keyTest() {
+        final TextView msg = tv("اضغط أي زرار في الفريم أو الطارة…\n\nلو ضغطت ومحصلش حاجة هنا خلال 10 ثواني، يبقى الزرار مش واصل لأندرويد أصلًا، ومحتاج «تعلم مفاتيح اللوحة» من إعدادات المصنع بتاعة الشاشة.", 16, TEXT, false);
+        msg.setPadding((int) (20 * s), (int) (16 * s), (int) (20 * s), (int) (8 * s));
+        final AlertDialog d = new TB(this, dlg()).setTitle("اختبار الزراير").setView(msg).setNegativeButton("Cerrar", null).create();
+        FrameKeys.onTest = new FrameKeys.KeyCb() { public void key(final int code) {
+            h.post(new Runnable() { public void run() {
+                FrameKeys.onTest = null;
+                FrameKeys.seen(prefs, code);
+                try { d.dismiss(); } catch (Throwable ignored) { }
+                chooseKeyAction(code);
+            }});
+        }};
+        d.setOnDismissListener(new DialogInterface.OnDismissListener() { public void onDismiss(DialogInterface x) { FrameKeys.onTest = null; } });
+        d.show();
+    }
+
+    private void chooseKeyAction(final int code) {
+        String cur = prefs.getString("keymap_" + code, "");
+        new TB(this, dlg()).setTitle("وصل: " + FrameKeys.name(code))
+            .setSingleChoiceItems(KEY_ACTION_NAMES, Math.max(0, java.util.Arrays.asList(KEY_ACTIONS).indexOf(cur)), new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface dd, int w) {
+                    if (w == 0) prefs.edit().remove("keymap_" + code).apply(); else prefs.edit().putString("keymap_" + code, KEY_ACTIONS[w]).apply();
+                    Extras.diag(prefs, "زرار " + FrameKeys.name(code) + " ← " + KEY_ACTION_NAMES[w]);
+                    dd.dismiss();
+                    if (settingsView != null && settingsCat > 0) showSettings(settingsCat);
+                }}).show();
+    }
+
     static final int REQ_VOICE = 4242;
 
     // ───────────────────────── أوامر صوتية (Elsadek Car) ─────────────────────────
@@ -7701,6 +7777,20 @@ public class Main extends Activity {
             row(sp, freeformOk(this) ? "La pantalla permite dividirse" : "La pantalla todavía no permite dividirse",
                 freeformOk(this) ? null : "Ajustes de Android → Opciones de desarrollador → «Habilitar ventanas de forma libre» y «Forzar actividades redimensionables», y reinicia", null, null);
             row(sp, "Probar ahora", null, null, new Runnable() { public void run() { splitTest(); } });
+            LinearLayout fk = section(body, "مفاتيح الفريم والطارة");
+            row(fk, FrameKeys.running ? "خدمة المفاتيح شغالة ✓" : "شغّل خدمة المفاتيح",
+                FrameKeys.running ? "الزراير بتشتغل حتى والخرايط أو أنغامي قدام" : "مرة واحدة: إعدادات أندرويد ← إمكانية الوصول (Accessibility) ← «مفاتيح الفريم والطارة» ← تشغيل. من غيرها الزراير بتشتغل بس والشاشة الرئيسية قدام",
+                null, new Runnable() { public void run() {
+                    try { startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); } catch (Throwable e) { toast("No se pudo abrir"); }
+                }});
+            row(fk, "اختبار الزراير وتظبيطها", "اضغط أي زرار في الفريم أو الطارة واختار هو يعمل إيه", null, new Runnable() { public void run() { keyTest(); } });
+            for (String k : prefs.getAll().keySet()) {
+                if (!k.startsWith("keymap_")) continue;
+                final int code; try { code = Integer.parseInt(k.substring(7)); } catch (Throwable e) { continue; }
+                String a0 = prefs.getString(k, "");
+                if (a0.length() == 0) continue;
+                row(fk, FrameKeys.name(code), "← " + keyActionName(a0), null, new Runnable() { public void run() { chooseKeyAction(code); } });
+            }
         }
         if (boxW > 0 && canVertical(boxW, boxH)) {
             // Solo en pantallas casi cuadradas o verticales (en las horizontales no tiene sentido).

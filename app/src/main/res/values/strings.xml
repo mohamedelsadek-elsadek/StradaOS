@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="acc_desc">Permite que StradaOS muestre la carátula y la pista de Android Auto leyendo la notificación de Open Headunit. No lee nada más.</string>
+    <string name="keys_label">مفاتيح الفريم والطارة</string>
+    <string name="keys_desc">بيخلّي زراير فريم الشاشة والطارة تعمل الحاجة اللي تختارها في Elsadek Car، حتى والخرايط أو أنغامي قدام. مابيقراش أي حاجة تانية.</string>
     <string name="acc_label">Carátula de Android Auto</string>
 </resources>

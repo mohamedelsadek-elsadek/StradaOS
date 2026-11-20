@@ -63,6 +63,13 @@
         </service>
         <service android:name="com.stradaos.launcher.NetRadio" android:exported="false"/>
         <service android:name="com.stradaos.launcher.KeepAlive" android:exported="false"/>
+        <service android:name="com.stradaos.launcher.FrameKeys" android:label="@string/keys_label" android:enabled="@bool/extras_on"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService"/>
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/frame_keys"/>
+        </service>
         <service android:name="com.stradaos.launcher.MediaListener" android:label="${appLabel} · música"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>

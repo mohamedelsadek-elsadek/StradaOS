@@ -78,6 +78,18 @@ adb shell am start -n $A --es prueba inicio; sleep 3
 adb shell wm size 720x1280; adb shell wm density 240
 adb shell am start -n $A --es prueba inicio; shot 5-vertical 10
 adb shell wm size reset; adb shell wm density reset
+# botones del marco: F5 → radio con Chrome delante (servicio de accesibilidad) y la prueba de teclas
+adb shell settings put secure enabled_accessibility_services $P/com.stradaos.launcher.FrameKeys
+adb shell settings put secure accessibility_enabled 1; sleep 3
+adb shell am start -n $A --es prueba tecla:135=radio; sleep 2
+adb shell am start -n com.android.chrome/com.google.android.apps.chrome.Main; sleep 5
+adb shell input keyevent 135; sleep 5
+adb exec-out screencap -p > capturas/13-tecla-radio.png
+adb shell input keyevent KEYCODE_BACK; sleep 2
+adb shell am start -n $A --es prueba teclas; sleep 3
+adb shell input keyevent 136; sleep 3
+adb exec-out screencap -p > capturas/13-tecla-prueba.png
+adb shell input keyevent KEYCODE_BACK; sleep 1
 # pantalla dividida (al final: necesita reiniciar con las ventanas libres activadas)
 adb shell settings put global enable_freeform_support 1
 adb shell settings put global force_resizable_activities 1
